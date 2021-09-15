@@ -92,7 +92,7 @@ def common_params(func):
     @click.option(
         "--deployment",
         default=None,
-        type=click.Choice(["azure", "aws", "gcp", "local"]),
+        type=click.Choice(["azure", "aws", "gcp", "local", "openwhisk"]),
         help="Cloud deployment to use.",
     )
     @simplified_common_params

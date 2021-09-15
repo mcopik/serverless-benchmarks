@@ -131,5 +131,40 @@
         }
       }
     }
+  },
+  "openwhisk": {
+    "languages": {
+      "python": {
+        "base_images": {
+          "3.6": "openwhisk/actionloop-python-v3.6-ai",
+          "2.7": "openwhisk/python2action"
+        },
+        "versions": ["3.6", "2.7"],
+        "images": [],
+        "username": "docker_user",
+        "deployment": {
+          "files": [ "__main__.py", "storage.py", "setup.py"],
+          "packages": {
+            "minio": "^5.0.10"
+          }
+        }
+      },
+      "nodejs": {
+        "base_images": {
+          "8" : "openwhisk/action-nodejs-v8",
+          "10" : "openwhisk/action-nodejs-v10",
+          "12" : "openwhisk/action-nodejs-v12"
+        },
+        "versions": [ "8", "10", "12"],
+        "images": [],
+        "username": "docker_user",
+        "deployment": {
+          "files": [ "index.js", "storage.js"],
+          "packages": {
+            "minio": "^7.0.16"
+          }
+        }
+      }
+    }
   }
 }

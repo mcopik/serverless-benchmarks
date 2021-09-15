@@ -1,0 +1,5 @@
+ARG BASE_IMAGE
+FROM $BASE_IMAGE
+COPY . function/
+RUN touch function/__init__.py \
+    && pip install --no-cache-dir function/

@@ -17,3 +17,5 @@ scipy
 #
 pycurl==7.43
 click==7.1.2
+jinja2==2.11.2
+pyyaml==5.3.1

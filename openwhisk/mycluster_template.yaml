@@ -1,0 +1,12 @@
+whisk:
+  ingress:
+    type: NodePort
+    apiHostName: <api_host_name>
+    apiHostPort: <api_host_port>
+
+invoker:
+  containerFactory:
+    impl: "kubernetes"
+
+nginx:
+  httpsNodePort: <api_host_port>

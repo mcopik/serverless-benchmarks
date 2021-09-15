@@ -114,7 +114,7 @@ class Azure(System):
     # - function.json
     # host.json
     # requirements.txt/package.json
-    def package_code(self, directory: str, language_name: str, benchmark: str) -> Tuple[str, int]:
+    def package_code(self, directory: str, language_name: str,  language_version: str, benchmark: str) -> Tuple[str, int]:
 
         # In previous step we ran a Docker container which installed packages
         # Python packages are in .python_packages because this is expected by Azure

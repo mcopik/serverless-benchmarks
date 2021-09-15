@@ -447,7 +447,7 @@ class Benchmark(LoggingBase):
         return self._code_size
 
     def build(
-        self, deployment_build_step: Callable[[str, str, str], Tuple[str, int]]
+        self, deployment_build_step: Callable[[str, str, str, str], Tuple[str, int]]
     ) -> Tuple[bool, str]:
 
         # Skip build if files are up to date and user didn't enforce rebuild
@@ -477,7 +477,7 @@ class Benchmark(LoggingBase):
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
         self._code_location, self._code_size = deployment_build_step(
-            os.path.abspath(self._output_dir), self.language_name, self.benchmark
+            os.path.abspath(self._output_dir), self.language_name, self.language_version, self.benchmark
         )
         self.logging.info(
             (

@@ -14,6 +14,8 @@ from sebs.faas.config import Config
 from sebs.utils import LoggingHandlers, LoggingBase
 
 from sebs.experiments.config import Config as ExperimentConfig
+from sebs.openwhisk import OpenWhisk
+from sebs.openwhisk.config import OpenWhiskConfig
 from sebs.experiments import Experiment
 
 
@@ -79,7 +81,7 @@ class SeBS(LoggingBase):
         deployment_config: Optional[Config] = None,
     ) -> FaaSSystem:
         name = config["name"]
-        implementations = {"aws": AWS, "azure": Azure, "gcp": GCP, "local": Local}
+        implementations = {"aws": AWS, "azure": Azure, "gcp": GCP, "local": Local, "openwhisk": OpenWhisk}
         if name not in implementations:
             raise RuntimeError("Deployment {name} not supported!".format(name=name))
 

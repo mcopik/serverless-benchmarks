@@ -180,7 +180,7 @@ class Trigger(ABC, LoggingBase):
                     return member
             raise Exception("Unknown trigger type {}".format(member))
 
-    def _http_invoke(self, payload: dict, url: str) -> ExecutionResult:
+    def _http_invoke(self, payload: dict, url: str, verify_ssl: bool = True) -> ExecutionResult:
         import pycurl
         from io import BytesIO
 
@@ -188,6 +188,9 @@ class Trigger(ABC, LoggingBase):
         c.setopt(pycurl.HTTPHEADER, ["Content-Type: application/json"])
         c.setopt(pycurl.POST, 1)
         c.setopt(pycurl.URL, url)
+        if not verify_ssl:
+            c.setopt(pycurl.SSL_VERIFYHOST, 0)
+            c.setopt(pycurl.SSL_VERIFYPEER, 0)
         data = BytesIO()
         c.setopt(pycurl.WRITEFUNCTION, data.write)
 

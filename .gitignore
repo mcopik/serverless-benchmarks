@@ -170,3 +170,7 @@ dmypy.json
 sebs-*
 # cache
 cache
+
+# IntelliJ IDEA files
+.idea
+*.iml

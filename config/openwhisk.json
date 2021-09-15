@@ -1,0 +1,17 @@
+{
+  "experiments": {
+    "update_code": false,
+    "update_storage": false,
+    "download_results": false,
+    "deployment": "openwhisk",
+    "runtime": {
+      "language": "python",
+      "version": "3.6"
+    }
+  },
+  "deployment": {
+    "name": "openwhisk",
+    "shutdownStorage": false,
+    "removeCluster": false
+  }
+}

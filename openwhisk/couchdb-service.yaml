@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: access-couchdb
+  namespace: openwhisk
+spec:
+  ports:
+  - name: access-couchdb
+    nodePort: 31201
+    port: 5984
+    protocol: TCP
+    targetPort: 5984
+  selector:
+    name: owdev-couchdb
+  type: NodePort
+
