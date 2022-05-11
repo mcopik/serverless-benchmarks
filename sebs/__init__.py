@@ -4,6 +4,6 @@ from .sebs import SeBS  # noqa
 # from .azure import *  # noqa
 
 from .cache import Cache  # noqa
-from .benchmark import Benchmark  # noqa
+from .code_package import CodePackage  # noqa
 
 # from .experiments import *  # noqa

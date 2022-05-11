@@ -6,7 +6,7 @@ from multiprocessing.pool import ThreadPool
 from typing import List, TYPE_CHECKING
 
 from sebs.faas.system import System as FaaSSystem
-from sebs.faas.function import Trigger
+from sebs.faas.benchmark import Trigger
 from sebs.experiments.experiment import Experiment
 from sebs.experiments.result import Result as ExperimentResult
 from sebs.experiments.config import Config as ExperimentConfig
@@ -354,7 +354,10 @@ class PerfCost(Experiment):
                         ) as out_f:
                             out_f.write(
                                 serialize(
-                                    {**json.loads(serialize(experiments)), "statistics": statistics}
+                                    {
+                                        **json.loads(serialize(experiments)),
+                                        "statistics": statistics,
+                                    }
                                 )
                             )
                 for func in experiments.functions():

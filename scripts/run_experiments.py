@@ -507,7 +507,7 @@ class local:
     '''
     def create_function(self, code_package: CodePackage, experiment_config :dict):
 
-        benchmark = code_package.benchmark
+        benchmark = code_package.name
 
         if code_package.is_cached and code_package.is_cached_valid:
             func_name = code_package.cached_config['name']
@@ -524,7 +524,7 @@ class local:
             code_location = code_package.code_location
 
             # Build code package
-            package = self.package_code(code_location, code_package.benchmark)
+            package = self.package_code(code_location, code_package.name)
             code_size = code_package.recalculate_code_size()
             cached_cfg = code_package.cached_config
 
@@ -546,13 +546,13 @@ class local:
             code_location = code_package.code_location
 
             # Build code package
-            package = self.package_code(code_location, code_package.benchmark)
+            package = self.package_code(code_location, code_package.name)
             code_size = code_package.recalculate_code_size()
             logging.info('Creating function {fname} in {loc}'.format(
                 fname=func_name,
                 loc=code_location
             ))
-            self.cache_client.add_function(
+            self.cache_client.add_benchmark(
                 deployment='local',
                 benchmark=benchmark,
                 language=self.language,
@@ -602,7 +602,7 @@ try:
         raise RuntimeError('Experiment {} is not supported for language {}!'.format(args.experiment, args.language))
 
     # 2. Locate benchmark
-    #benchmark_path = find_benchmark(args.benchmark, 'benchmarks')
+    #benchmark_path = find_package_code(args.benchmark, 'benchmarks')
     #logging.info('# Located benchmark {} at {}'.format(args.benchmark, benchmark_path))
 
     # 6. Create experiment config

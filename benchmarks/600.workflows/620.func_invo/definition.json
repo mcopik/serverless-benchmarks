@@ -1,0 +1,29 @@
+{
+    "root": "gen_one",
+    "states": {
+        "gen_one": {
+            "type": "task",
+            "func_name": "gen_buffer_one",
+            "next": "gen_two"
+        },
+        "gen_two": {
+            "type": "task",
+            "func_name": "gen_buffer_two",
+            "next": "gen_three"
+        },
+        "gen_three": {
+            "type": "task",
+            "func_name": "gen_buffer_three",
+            "next": "gen_four"
+        },
+        "gen_four": {
+            "type": "task",
+            "func_name": "gen_buffer_four",
+            "next": "gen_five"
+        },
+        "gen_five": {
+            "type": "task",
+            "func_name": "gen_buffer_five"
+        }
+    }
+}

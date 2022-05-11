@@ -119,16 +119,20 @@ class AWSResources(Resources):
                 "Version": "2012-10-17",
                 "Statement": [
                     {
+                        "Sid": "",
                         "Effect": "Allow",
-                        "Principal": {"Service": "lambda.amazonaws.com"},
+                        "Principal": {"Service": ["lambda.amazonaws.com", "states.amazonaws.com"]},
                         "Action": "sts:AssumeRole",
                     }
                 ],
             }
-            role_name = "sebs-lambda-role"
+            role_name = "sebs-role"
             attached_policies = [
                 "arn:aws:iam::aws:policy/AmazonS3FullAccess",
+                "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess",
                 "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+                "arn:aws:iam::aws:policy/service-role/AWSLambdaRole",
+                "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess",
             ]
             try:
                 out = iam_client.get_role(RoleName=role_name)
@@ -233,10 +237,11 @@ class AWSResources(Resources):
 
 
 class AWSConfig(Config):
-    def __init__(self, credentials: AWSCredentials, resources: AWSResources):
+    def __init__(self, credentials: AWSCredentials, resources: AWSResources, redis_host: str):
         super().__init__()
         self._credentials = credentials
         self._resources = resources
+        self._redis_host = redis_host
 
     @staticmethod
     def typename() -> str:
@@ -250,11 +255,16 @@ class AWSConfig(Config):
     def resources(self) -> AWSResources:
         return self._resources
 
+    @property
+    def redis_host(self) -> str:
+        return self._redis_host
+
     # FIXME: use future annotations (see sebs/faas/system)
     @staticmethod
     def initialize(cfg: Config, dct: dict):
         config = cast(AWSConfig, cfg)
         config._region = dct["region"]
+        config._redis_host = dct["redis_host"]
 
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> Config:
@@ -263,7 +273,7 @@ class AWSConfig(Config):
         # FIXME: use future annotations (see sebs/faas/system)
         credentials = cast(AWSCredentials, AWSCredentials.deserialize(config, cache, handlers))
         resources = cast(AWSResources, AWSResources.deserialize(config, cache, handlers))
-        config_obj = AWSConfig(credentials, resources)
+        config_obj = AWSConfig(credentials, resources, cached_config["redis_host"])
         config_obj.logging_handlers = handlers
         # Load cached values
         if cached_config:
@@ -294,5 +304,6 @@ class AWSConfig(Config):
             "region": self._region,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
+            "redis_host": self._redis_host,
         }
         return out

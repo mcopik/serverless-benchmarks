@@ -63,7 +63,7 @@ class TestSequenceMeta(type):
                 input_config = benchmark.prepare_input(storage=storage, size="test")
                 func = deployment_client.get_function(
                     benchmark,
-                    deployment_client.default_function_name(benchmark)
+                    deployment_client.default_benchmark_name(benchmark)
                 )
                 ret = func.triggers[0].sync_invoke(input_config)
                 if ret.stats.failure:

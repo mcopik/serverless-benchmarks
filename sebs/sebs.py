@@ -5,7 +5,7 @@ import docker
 from sebs.local import Local
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
-from sebs.benchmark import Benchmark
+from sebs.code_package import CodePackage
 from sebs.faas.system import System as FaaSSystem
 from sebs.faas.config import Config
 from sebs.utils import has_platform, LoggingHandlers, LoggingBase
@@ -149,8 +149,8 @@ class SeBS(LoggingBase):
         deployment: FaaSSystem,
         config: ExperimentConfig,
         logging_filename: Optional[str] = None,
-    ) -> Benchmark:
-        benchmark = Benchmark(
+    ) -> CodePackage:
+        code_package = CodePackage(
             name,
             deployment.name(),
             config,
@@ -159,10 +159,10 @@ class SeBS(LoggingBase):
             self.cache_client,
             self.docker_client,
         )
-        benchmark.logging_handlers = self.generate_logging_handlers(
+        code_package.logging_handlers = self.generate_logging_handlers(
             logging_filename=logging_filename
         )
-        return benchmark
+        return code_package
 
     def shutdown(self):
         self.cache_client.shutdown()

@@ -83,7 +83,10 @@ class Minio(PersistentStorage):
 
     def get_connection(self):
         return minio.Minio(
-            self._url, access_key=self._access_key, secret_key=self._secret_key, secure=False
+            self._url,
+            access_key=self._access_key,
+            secret_key=self._secret_key,
+            secure=False,
         )
 
     def _create_bucket(self, name: str, buckets: List[str] = []):

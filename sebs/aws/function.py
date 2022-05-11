@@ -1,7 +1,7 @@
 from typing import cast, Optional
 
 from sebs.aws.s3 import S3
-from sebs.faas.function import Function
+from sebs.faas.benchmark import Function
 
 
 class LambdaFunction(Function):
@@ -42,12 +42,12 @@ class LambdaFunction(Function):
 
     @staticmethod
     def deserialize(cached_config: dict) -> "LambdaFunction":
-        from sebs.faas.function import Trigger
-        from sebs.aws.triggers import LibraryTrigger, HTTPTrigger
+        from sebs.faas.benchmark import Trigger
+        from sebs.aws.triggers import FunctionLibraryTrigger, HTTPTrigger
 
         ret = LambdaFunction(
             cached_config["name"],
-            cached_config["benchmark"],
+            cached_config["code_package"],
             cached_config["arn"],
             cached_config["hash"],
             cached_config["timeout"],
@@ -59,7 +59,7 @@ class LambdaFunction(Function):
         for trigger in cached_config["triggers"]:
             trigger_type = cast(
                 Trigger,
-                {"Library": LibraryTrigger, "HTTP": HTTPTrigger}.get(trigger["type"]),
+                {"Library": FunctionLibraryTrigger, "HTTP": HTTPTrigger}.get(trigger["type"]),
             )
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))

@@ -1,8 +1,10 @@
 from sebs.azure.config import AzureResources
-from sebs.faas.function import Function
+from sebs.faas.benchmark import Benchmark, Function, Workflow
+
+from typing import cast
 
 
-class AzureFunction(Function):
+class FunctionApp(Benchmark):
     def __init__(
         self,
         name: str,
@@ -20,10 +22,10 @@ class AzureFunction(Function):
         }
 
     @staticmethod
-    def deserialize(cached_config: dict) -> Function:
-        ret = AzureFunction(
+    def deserialize(cached_config: dict) -> "FunctionApp":
+        ret = FunctionApp(
             cached_config["name"],
-            cached_config["benchmark"],
+            cached_config["code_package"],
             cached_config["hash"],
             AzureResources.Storage.deserialize(cached_config["function_storage"]),
         )
@@ -34,3 +36,15 @@ class AzureFunction(Function):
             assert trigger_type, "Unknown trigger type {}".format(trigger["type"])
             ret.add_trigger(trigger_type.deserialize(trigger))
         return ret
+
+
+class AzureFunction(Function, FunctionApp):
+    @staticmethod
+    def deserialize(cached_config: dict) -> "AzureFunction":
+        return cast(AzureFunction, FunctionApp.deserialize(cached_config))
+
+
+class AzureWorkflow(Workflow, FunctionApp):
+    @staticmethod
+    def deserialize(cached_config: dict) -> "AzureWorkflow":
+        return cast(AzureWorkflow, FunctionApp.deserialize(cached_config))

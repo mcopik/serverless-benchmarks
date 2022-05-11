@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 from typing import Dict, TYPE_CHECKING
 
-from sebs.benchmark import Benchmark
+from sebs.code_package import CodePackage
 from sebs.faas.system import System as FaaSSystem
 from sebs.experiments.experiment import Experiment
 from sebs.experiments.config import Config as ExperimentConfig
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 class CodePackageSize:
-    def __init__(self, deployment_client: FaaSSystem, benchmark: Benchmark, settings: dict):
+    def __init__(self, deployment_client: FaaSSystem, benchmark: CodePackage, settings: dict):
         import math
         from numpy import linspace
 
@@ -24,9 +24,9 @@ class CodePackageSize:
             settings["code_package_end"],
             settings["code_package_points"],
         )
-        from sebs.utils import find_benchmark
+        from sebs.utils import find_package_code
 
-        self._benchmark_path = find_benchmark("030.clock-synchronization", "benchmarks")
+        self._benchmark_path = find_package_code("030.clock-synchronization", "benchmarks")
         self._benchmark = benchmark
         random.seed(1410)
 
@@ -73,7 +73,7 @@ class InvocationOverhead(Experiment):
 
         # deploy network test function
         from sebs import SeBS  # noqa
-        from sebs.faas.function import Trigger
+        from sebs.faas.benchmark import Trigger
 
         self._benchmark = sebs_client.get_benchmark(
             "030.clock-synchronization", deployment_client, self.config

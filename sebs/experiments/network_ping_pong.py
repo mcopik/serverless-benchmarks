@@ -10,7 +10,7 @@ from typing import Dict, TYPE_CHECKING
 from multiprocessing.dummy import Pool as ThreadPool
 
 from sebs.faas.system import System as FaaSSystem
-from sebs.faas.function import Trigger
+from sebs.faas.benchmark import Trigger
 from sebs.experiments.experiment import Experiment
 from sebs.experiments.config import Config as ExperimentConfig
 

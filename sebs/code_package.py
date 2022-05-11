@@ -10,7 +10,7 @@ import docker
 
 from sebs.config import SeBSConfig
 from sebs.cache import Cache
-from sebs.utils import find_benchmark, project_absolute_path, LoggingBase
+from sebs.utils import find_package_code, project_absolute_path, LoggingBase
 from sebs.faas.storage import PersistentStorage
 from typing import TYPE_CHECKING
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from sebs.experiments.config import Language
 
 
-class BenchmarkConfig:
+class CodePackageConfig:
     def __init__(self, timeout: int, memory: int, languages: List["Language"]):
         self._timeout = timeout
         self._memory = memory
@@ -39,10 +39,10 @@ class BenchmarkConfig:
 
     # FIXME: 3.7+ python with future annotations
     @staticmethod
-    def deserialize(json_object: dict) -> "BenchmarkConfig":
+    def deserialize(json_object: dict) -> "CodePackageConfig":
         from sebs.experiments.config import Language
 
-        return BenchmarkConfig(
+        return CodePackageConfig(
             json_object["timeout"],
             json_object["memory"],
             [Language.deserialize(x) for x in json_object["languages"]],
@@ -62,35 +62,35 @@ class BenchmarkConfig:
 """
 
 
-class Benchmark(LoggingBase):
+class CodePackage(LoggingBase):
     @staticmethod
     def typename() -> str:
-        return "Benchmark"
+        return "CodePackage"
 
     @property
-    def benchmark(self):
-        return self._benchmark
+    def name(self):
+        return self._name
 
     @property
-    def benchmark_path(self):
-        return self._benchmark_path
+    def path(self):
+        return self._path
 
     @property
-    def benchmark_config(self) -> BenchmarkConfig:
-        return self._benchmark_config
+    def config(self) -> CodePackageConfig:
+        return self._config
 
     @property
-    def code_package(self) -> dict:
-        return self._code_package
+    def payload(self) -> dict:
+        return self._payload
 
     @property
-    def functions(self) -> Dict[str, Any]:
-        return self._functions
+    def benchmarks(self) -> Dict[str, Any]:
+        return self._benchmarks
 
     @property
     def code_location(self):
-        if self.code_package:
-            return os.path.join(self._cache_client.cache_dir, self.code_package["location"])
+        if self.payload:
+            return os.path.join(self._cache_client.cache_dir, self.payload["location"])
         else:
             return self._code_location
 
@@ -128,8 +128,10 @@ class Benchmark(LoggingBase):
 
     @property  # noqa: A003
     def hash(self):
-        path = os.path.join(self.benchmark_path, self.language_name)
-        self._hash_value = Benchmark.hash_directory(path, self._deployment_name, self.language_name)
+        path = os.path.join(self.path, self.language_name)
+        self._hash_value = CodePackage.hash_directory(
+            path, self._deployment_name, self.language_name
+        )
         return self._hash_value
 
     @hash.setter  # noqa: A003
@@ -141,7 +143,7 @@ class Benchmark(LoggingBase):
 
     def __init__(
         self,
-        benchmark: str,
+        name: str,
         deployment_name: str,
         config: "ExperimentConfig",
         system_config: SeBSConfig,
@@ -150,27 +152,26 @@ class Benchmark(LoggingBase):
         docker_client: docker.client,
     ):
         super().__init__()
-        self._benchmark = benchmark
+        self._name = name
         self._deployment_name = deployment_name
         self._experiment_config = config
         self._language = config.runtime.language
         self._language_version = config.runtime.version
-        self._benchmark_path = find_benchmark(self.benchmark, "benchmarks")
-        if not self._benchmark_path:
-            raise RuntimeError("Benchmark {benchmark} not found!".format(benchmark=self._benchmark))
-        with open(os.path.join(self.benchmark_path, "config.json")) as json_file:
-            self._benchmark_config: BenchmarkConfig = BenchmarkConfig.deserialize(
-                json.load(json_file)
-            )
-        if self.language not in self.benchmark_config.languages:
+        self._path = find_package_code(self.name, "benchmarks")
+        if not self._path:
+            raise RuntimeError("Benchmark {name} not found!".format(name=self._name))
+        with open(os.path.join(self.path, "config.json")) as json_file:
+            self._config: CodePackageConfig = CodePackageConfig.deserialize(json.load(json_file))
+
+        if self.language not in self.config.languages:
             raise RuntimeError(
-                "Benchmark {} not available for language {}".format(self.benchmark, self.language)
+                "Benchmark {} not available for language {}".format(self.name, self.language)
             )
         self._cache_client = cache_client
         self._docker_client = docker_client
         self._system_config = system_config
         self._hash_value = None
-        self._output_dir = os.path.join(output_dir, f"{benchmark}_code")
+        self._output_dir = os.path.join(output_dir, f"{name}_code")
 
         # verify existence of function in cache
         self.query_cache()
@@ -197,6 +198,13 @@ class Benchmark(LoggingBase):
                 path = os.path.join(directory, f)
                 with open(path, "rb") as opened_file:
                     hash_sum.update(opened_file.read())
+
+        # workflow definition
+        definition_path = os.path.join(directory, os.path.pardir, "definition.json")
+        if os.path.exists(definition_path):
+            with open(definition_path, "rb") as opened_file:
+                hash_sum.update(opened_file.read())
+
         # wrappers
         wrappers = project_absolute_path(
             "benchmarks", "wrappers", deployment, language, WRAPPERS[language]
@@ -211,55 +219,63 @@ class Benchmark(LoggingBase):
         return {"size": self.code_size, "hash": self.hash}
 
     def query_cache(self):
-        self._code_package = self._cache_client.get_code_package(
+        self._payload = self._cache_client.get_code_package(
             deployment=self._deployment_name,
-            benchmark=self._benchmark,
+            benchmark=self._name,
             language=self.language_name,
         )
-        self._functions = self._cache_client.get_functions(
+        self._benchmarks = self._cache_client.get_benchmarks(
             deployment=self._deployment_name,
-            benchmark=self._benchmark,
+            benchmark=self._name,
             language=self.language_name,
         )
 
-        if self._code_package is not None:
+        if self._payload is not None:
             # compare hashes
             current_hash = self.hash
-            old_hash = self._code_package["hash"]
-            self._code_size = self._code_package["size"]
+            old_hash = self._payload["hash"]
+            self._code_size = self._payload["size"]
             self._is_cached = True
             self._is_cached_valid = current_hash == old_hash
         else:
             self._is_cached = False
             self._is_cached_valid = False
 
-    def copy_code(self, output_dir):
+    def get_code_files(self, include_config=True):
         FILES = {
-            "python": ["*.py", "requirements.txt*"],
-            "nodejs": ["*.js", "package.json"],
+            "python": ["*.py"],
+            "nodejs": ["*.js"],
         }
-        path = os.path.join(self.benchmark_path, self.language_name)
+        if include_config:
+            FILES["python"] += ["requirements.txt*", "*.json"]
+            FILES["nodejs"] += ["package.json", "*.json"]
+
+        path = os.path.join(self.path, self.language_name)
         for file_type in FILES[self.language_name]:
             for f in glob.glob(os.path.join(path, file_type)):
-                shutil.copy2(os.path.join(path, f), output_dir)
+                yield os.path.join(path, f)
+
+    def copy_code(self, output_dir: str):
+        for path in self.get_code_files():
+            shutil.copy2(path, output_dir)
 
     def add_benchmark_data(self, output_dir):
-        cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false"
+        cmd = "/bin/bash {path}/init.sh {output_dir} false"
         paths = [
-            self.benchmark_path,
-            os.path.join(self.benchmark_path, self.language_name),
+            self.path,
+            os.path.join(self.path, self.language_name),
         ]
         for path in paths:
             if os.path.exists(os.path.join(path, "init.sh")):
                 out = subprocess.run(
-                    cmd.format(benchmark_path=path, output_dir=output_dir),
+                    cmd.format(path=path, output_dir=output_dir),
                     shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                 )
                 self.logging.debug(out.stdout.decode("utf-8"))
 
-    def add_deployment_files(self, output_dir):
+    def add_deployment_files(self, output_dir: str, is_workflow: bool):
         handlers_dir = project_absolute_path(
             "benchmarks", "wrappers", self._deployment_name, self.language_name
         )
@@ -272,6 +288,17 @@ class Benchmark(LoggingBase):
         for file in handlers:
             shutil.copy2(file, os.path.join(output_dir))
 
+        if self.language_name == "python":
+            handler_path = os.path.join(output_dir, "handler.py")
+            handler_function_path = os.path.join(output_dir, "handler_function.py")
+            handler_workflow_path = os.path.join(output_dir, "handler_workflow.py")
+            if is_workflow:
+                os.rename(handler_workflow_path, handler_path)
+                os.remove(handler_function_path)
+            else:
+                os.rename(handler_function_path, handler_path)
+                os.remove(handler_workflow_path)
+
     def add_deployment_package_python(self, output_dir):
         # append to the end of requirements file
         packages = self._system_config.deployment_packages(
@@ -279,8 +306,9 @@ class Benchmark(LoggingBase):
         )
         if len(packages):
             with open(os.path.join(output_dir, "requirements.txt"), "a") as out:
+                out.write("\n")
                 for package in packages:
-                    out.write(package)
+                    out.write(package + "\n")
 
     def add_deployment_package_nodejs(self, output_dir):
         # modify package.json
@@ -349,7 +377,7 @@ class Benchmark(LoggingBase):
             if not self._experiment_config.check_flag("docker_copy_build_files"):
                 volumes = {os.path.abspath(output_dir): {"bind": "/mnt/function", "mode": "rw"}}
                 package_script = os.path.abspath(
-                    os.path.join(self._benchmark_path, self.language_name, "package.sh")
+                    os.path.join(self._path, self.language_name, "package.sh")
                 )
                 # does this benchmark has package.sh script?
                 if os.path.exists(package_script):
@@ -378,7 +406,7 @@ class Benchmark(LoggingBase):
                         stdout = self._docker_client.containers.run(
                             "{}:{}".format(repo_name, image_name),
                             volumes=volumes,
-                            environment={"APP": self.benchmark},
+                            environment={"APP": self.name},
                             # user="1000:1000",
                             user=uid,
                             remove=True,
@@ -390,7 +418,7 @@ class Benchmark(LoggingBase):
                     else:
                         container = self._docker_client.containers.run(
                             "{}:{}".format(repo_name, image_name),
-                            environment={"APP": self.benchmark},
+                            environment={"APP": self.name},
                             # user="1000:1000",
                             user=uid,
                             # remove=True,
@@ -443,17 +471,19 @@ class Benchmark(LoggingBase):
                     raise e
 
     def recalculate_code_size(self):
-        self._code_size = Benchmark.directory_size(self._output_dir)
+        self._code_size = CodePackage.directory_size(self._output_dir)
         return self._code_size
 
     def build(
-        self, deployment_build_step: Callable[[str, str, str], Tuple[str, int]]
+        self,
+        deployment_build_step: Callable[["CodePackage", str, bool], Tuple[str, int]],
+        is_workflow: bool,
     ) -> Tuple[bool, str]:
 
         # Skip build if files are up to date and user didn't enforce rebuild
         if self.is_cached and self.is_cached_valid:
             self.logging.info(
-                "Using cached benchmark {} at {}".format(self.benchmark, self.code_location)
+                "Using cached benchmark {} at {}".format(self.name, self.code_location)
             )
             return False, self.code_location
 
@@ -462,9 +492,9 @@ class Benchmark(LoggingBase):
             if not self.is_cached
             else "cached code package is not up to date/build enforced."
         )
-        self.logging.info("Building benchmark {}. Reason: {}".format(self.benchmark, msg))
+        self.logging.info("Building benchmark {}. Reason: {}".format(self.name, msg))
         # clear existing cache information
-        self._code_package = None
+        self._payload = None
 
         # create directory to be deployed
         if os.path.exists(self._output_dir):
@@ -473,11 +503,11 @@ class Benchmark(LoggingBase):
 
         self.copy_code(self._output_dir)
         self.add_benchmark_data(self._output_dir)
-        self.add_deployment_files(self._output_dir)
+        self.add_deployment_files(self._output_dir, is_workflow)
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
         self._code_location, self._code_size = deployment_build_step(
-            os.path.abspath(self._output_dir), self.language_name, self.benchmark
+            self, os.path.abspath(self._output_dir), is_workflow
         )
         self.logging.info(
             (
@@ -506,15 +536,15 @@ class Benchmark(LoggingBase):
 
         :param client: Deployment client
         :param benchmark:
-        :param benchmark_path:
+        :param path:
         :param size: Benchmark workload size
     """
 
     def prepare_input(self, storage: PersistentStorage, size: str):
-        benchmark_data_path = find_benchmark(self._benchmark, "benchmarks-data")
-        mod = load_benchmark_input(self._benchmark_path)
+        benchmark_data_path = find_package_code(self.name, "benchmarks-data")
+        mod = load_benchmark_input(self._path)
         buckets = mod.buckets_count()
-        storage.allocate_buckets(self.benchmark, buckets)
+        storage.allocate_buckets(self.name, buckets)
         # Get JSON and upload data as required by benchmark
         input_config = mod.generate_input(
             benchmark_data_path,
@@ -532,9 +562,9 @@ class Benchmark(LoggingBase):
 
     def code_package_modify(self, filename: str, data: bytes):
 
-        if self.code_package_is_archive():
+        if self.is_archive():
             self._update_zip(self.code_location, filename, data)
-            new_size = self.code_package_recompute_size() / 1024.0 / 1024.0
+            new_size = self.recompute_size() / 1024.0 / 1024.0
             self.logging.info(f"Modified zip package {self.code_location}, new size {new_size} MB")
         else:
             raise NotImplementedError()
@@ -544,13 +574,13 @@ class Benchmark(LoggingBase):
         Azure: directory
     """
 
-    def code_package_is_archive(self) -> bool:
+    def is_archive(self) -> bool:
         if os.path.isfile(self.code_location):
             extension = os.path.splitext(self.code_location)[1]
             return extension in [".zip"]
         return False
 
-    def code_package_recompute_size(self) -> float:
+    def recompute_size(self) -> float:
         bytes_size = os.path.getsize(self.code_location)
         self._code_size = bytes_size
         return bytes_size
@@ -588,7 +618,7 @@ class Benchmark(LoggingBase):
 """
 
 
-class BenchmarkModuleInterface:
+class CodePackageModuleInterface:
     @staticmethod
     def buckets_count() -> Tuple[int, int]:
         pass
@@ -604,11 +634,11 @@ class BenchmarkModuleInterface:
         pass
 
 
-def load_benchmark_input(benchmark_path: str) -> BenchmarkModuleInterface:
+def load_benchmark_input(path: str) -> CodePackageModuleInterface:
     # Look for input generator file in the directory containing benchmark
     import importlib.machinery
 
-    loader = importlib.machinery.SourceFileLoader("input", os.path.join(benchmark_path, "input.py"))
+    loader = importlib.machinery.SourceFileLoader("input", os.path.join(path, "input.py"))
     spec = importlib.util.spec_from_loader(loader.name, loader)
     assert spec
     mod = importlib.util.module_from_spec(spec)

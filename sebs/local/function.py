@@ -2,7 +2,7 @@ import concurrent.futures
 import docker
 import json
 
-from sebs.faas.function import ExecutionResult, Function, Trigger
+from sebs.faas.benchmark import ExecutionResult, Function, Trigger
 
 
 class HTTPTrigger(Trigger):
@@ -30,14 +30,19 @@ class HTTPTrigger(Trigger):
     def serialize(self) -> dict:
         return {"type": "HTTP", "url": self.url}
 
-    @staticmethod
-    def deserialize(obj: dict) -> Trigger:
+    @classmethod
+    def deserialize(cls, obj: dict) -> Trigger:
         return HTTPTrigger(obj["url"])
 
 
 class LocalFunction(Function):
     def __init__(
-        self, docker_container, port: int, name: str, benchmark: str, code_package_hash: str
+        self,
+        docker_container,
+        port: int,
+        name: str,
+        benchmark: str,
+        code_package_hash: str,
     ):
         super().__init__(benchmark, name, code_package_hash)
         self._instance = docker_container

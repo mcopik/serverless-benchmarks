@@ -1,0 +1,48 @@
+{
+    "root": "get_astros",
+    "states": {
+        "get_astros": {
+            "type": "task",
+            "func_name": "get_astros",
+            "next": "select_astros_number"
+        },
+        "select_astros_number": {
+            "type": "switch",
+            "cases": [
+                {
+                    "var": "astros.number",
+                    "op": "<",
+                    "val": 10,
+                    "next": "few_people"
+                },
+                {
+                    "var": "astros.number",
+                    "op": ">=",
+                    "val": 10,
+                    "next": "many_people"
+                }
+            ],
+            "default": "few_people"
+        },
+        "few_people": {
+            "type": "task",
+            "func_name": "few_people",
+            "next": "map_astros"
+        },
+        "many_people": {
+            "type": "task",
+            "func_name": "many_people",
+            "next": "map_astros"
+        },
+        "map_astros": {
+            "type": "map",
+            "array": "astros.people",
+            "func_name": "map_astros",
+            "next": "process_astros"
+        },
+        "process_astros": {
+            "type": "task",
+            "func_name": "process_astros"
+        }
+    }
+}

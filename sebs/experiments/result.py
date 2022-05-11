@@ -3,7 +3,7 @@ from typing import Dict, List, Optional, Tuple  # noqa
 
 from sebs.cache import Cache
 from sebs.faas.config import Config as DeploymentConfig
-from sebs.faas.function import Function, ExecutionResult
+from sebs.faas.benchmark import Function, ExecutionResult
 from sebs.utils import LoggingHandlers
 from sebs.experiments.config import Config as ExperimentConfig
 

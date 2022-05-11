@@ -4,14 +4,17 @@ import json
 import time
 from typing import Dict, Optional  # noqa
 
+from google.cloud.workflows.executions_v1beta import ExecutionsClient
+from google.cloud.workflows.executions_v1beta.types import Execution
+
 from sebs.gcp.gcp import GCP
-from sebs.faas.function import ExecutionResult, Trigger
+from sebs.faas.benchmark import ExecutionResult, Trigger
 
 
 class LibraryTrigger(Trigger):
-    def __init__(self, fname: str, deployment_client: Optional[GCP] = None):
+    def __init__(self, name: str, deployment_client: Optional[GCP] = None):
         super().__init__()
-        self.name = fname
+        self.name = name
         self._deployment_client = deployment_client
 
     @staticmethod
@@ -31,6 +34,18 @@ class LibraryTrigger(Trigger):
     def trigger_type() -> Trigger.TriggerType:
         return Trigger.TriggerType.LIBRARY
 
+    def async_invoke(self, payload: dict):
+        raise NotImplementedError()
+
+    def serialize(self) -> dict:
+        return {"type": "Library", "name": self.name}
+
+    @classmethod
+    def deserialize(cls, obj: dict) -> Trigger:
+        return cls(obj["name"])
+
+
+class FunctionLibraryTrigger(LibraryTrigger):
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
         self.logging.info(f"Invoke function {self.name}")
@@ -71,15 +86,52 @@ class LibraryTrigger(Trigger):
         gcp_result.parse_benchmark_output(output)
         return gcp_result
 
-    def async_invoke(self, payload: dict):
-        raise NotImplementedError()
 
-    def serialize(self) -> dict:
-        return {"type": "Library", "name": self.name}
+class WorkflowLibraryTrigger(LibraryTrigger):
+    def sync_invoke(self, payload: dict) -> ExecutionResult:
 
-    @staticmethod
-    def deserialize(obj: dict) -> Trigger:
-        return LibraryTrigger(obj["name"])
+        self.logging.info(f"Invoke workflow {self.name}")
+
+        # Verify that the function is deployed
+        # deployed = False
+        # while not deployed:
+        #     if self.deployment_client.is_deployed(self.name):
+        #         deployed = True
+        #     else:
+        #         time.sleep(5)
+
+        # GCP's fixed style for a function name
+        config = self.deployment_client.config
+        full_workflow_name = GCP.get_full_workflow_name(
+            config.project_name, config.region, self.name
+        )
+
+        execution_client = ExecutionsClient()
+        execution = Execution(argument=json.dumps(payload))
+
+        begin = datetime.datetime.now()
+        res = execution_client.create_execution(parent=full_workflow_name, execution=execution)
+        end = datetime.datetime.now()
+
+        gcp_result = ExecutionResult.from_times(begin, end)
+
+        # Wait for execution to finish, then print results.
+        execution_finished = False
+        while not execution_finished:
+            execution = execution_client.get_execution(request={"name": res.name})
+            execution_finished = execution.state != Execution.State.ACTIVE
+
+            # If we haven't seen the result yet, wait a second.
+            if not execution_finished:
+                time.sleep(10)
+            elif execution.state == Execution.State.FAILED:
+                self.logging.error(f"Invocation of {self.name} failed")
+                self.logging.error(f"Input: {payload}")
+                gcp_result.stats.failure = True
+                return gcp_result
+
+        gcp_result.parse_benchmark_execution(execution)
+        return gcp_result
 
 
 class HTTPTrigger(Trigger):
@@ -108,6 +160,6 @@ class HTTPTrigger(Trigger):
     def serialize(self) -> dict:
         return {"type": "HTTP", "url": self.url}
 
-    @staticmethod
-    def deserialize(obj: dict) -> Trigger:
+    @classmethod
+    def deserialize(cls, obj: dict) -> Trigger:
         return HTTPTrigger(obj["url"])

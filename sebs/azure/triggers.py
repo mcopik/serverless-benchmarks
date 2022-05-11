@@ -2,7 +2,7 @@ import concurrent.futures
 from typing import Any, Dict, Optional  # noqa
 
 from sebs.azure.config import AzureResources
-from sebs.faas.function import ExecutionResult, Trigger
+from sebs.faas.benchmark import ExecutionResult, Trigger
 
 
 class AzureTrigger(Trigger):
@@ -30,7 +30,6 @@ class HTTPTrigger(AzureTrigger):
         return Trigger.TriggerType.HTTP
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
-
         payload["connection_string"] = self.data_storage_account.connection_string
         return self._http_invoke(payload, self.url)
 
@@ -42,6 +41,6 @@ class HTTPTrigger(AzureTrigger):
     def serialize(self) -> dict:
         return {"type": "HTTP", "url": self.url}
 
-    @staticmethod
-    def deserialize(obj: dict) -> Trigger:
+    @classmethod
+    def deserialize(cls, obj: dict) -> Trigger:
         return HTTPTrigger(obj["url"])

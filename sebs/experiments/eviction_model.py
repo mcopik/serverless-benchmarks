@@ -7,7 +7,7 @@ import multiprocessing
 from multiprocessing.pool import AsyncResult, ThreadPool
 
 from sebs.faas.system import System as FaaSSystem
-from sebs.faas.function import Function, Trigger
+from sebs.faas.benchmark import Function, Trigger
 from sebs.experiments import Experiment, ExperimentResult
 from sebs.experiments.config import Config as ExperimentConfig
 from sebs.utils import serialize
@@ -183,7 +183,7 @@ class EvictionModel(Experiment):
         )
         self._deployment_client = deployment_client
         self._result = ExperimentResult(self.config, deployment_client.config)
-        name = deployment_client.default_function_name(self._benchmark)
+        name = deployment_client.default_benchmark_name(self._benchmark)
         self.functions_names = [
             f"{name}-{time}-{copy}"
             for time in self.times

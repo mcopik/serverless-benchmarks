@@ -47,7 +47,7 @@ on a given platform, in parallel.
 configuration.
 
 `sebs/statistics.py` - implements common statistics routines.
- 
+
 `sebs/utils.py` - implements serialization and logging configuration used by SeBS.
 
 `sebs/faas/` - the abstract interface for all FaaS platforms, see [below](#faas-interface) for details.
@@ -87,8 +87,8 @@ used for microarchitectural analysis of local invocations.
 for the selected platform. Then, an instance of `sebs.Benchmark` is created, and both objects
 are used to create or update function code package and upload or update input data in the cloud
 storage with the help of `sebs.faas.PersistentStorage` implementation.
-In the end, an object of `sebs.faas.function.Function` is created with exposes a list of triggers
-encapsulated in `sebs.faas.function.Trigger`. The function is invoked via a selected trigger,
+In the end, an object of `sebs.faas.benchmark.Function` is created with exposes a list of triggers
+encapsulated in `sebs.faas.benchmark.Trigger`. The function is invoked via a selected trigger,
 and the output includes a JSON file with invocation ID and results.
 
 `sebs.py benchmark process` - the JSON result from benchmark invocation is read, deserialized,

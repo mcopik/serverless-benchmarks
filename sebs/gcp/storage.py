@@ -2,7 +2,7 @@ import logging
 import uuid
 from typing import List
 
-from google.cloud import storage as gcp_storage
+from google.cloud import storage as gcp_storage  # type: ignore
 
 from sebs.cache import Cache
 from ..faas.storage import PersistentStorage

@@ -4,7 +4,7 @@ import threading
 from time import sleep
 from typing import cast, Dict, Optional, Set, TYPE_CHECKING
 
-from sebs.faas.function import Trigger
+from sebs.faas.benchmark import Trigger
 
 if TYPE_CHECKING:
     from sebs import SeBS
@@ -48,7 +48,7 @@ class TestSequenceMeta(type):
                     replace_existing=experiment_config.update_storage
                 )
                 func = deployment_client.get_function(
-                    benchmark, deployment_client.default_function_name(benchmark)
+                    benchmark, deployment_client.default_benchmark_name(benchmark)
                 )
                 input_config = benchmark.prepare_input(storage=storage, size="test")
 

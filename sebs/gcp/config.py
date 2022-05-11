@@ -144,10 +144,11 @@ class GCPConfig(Config):
 
     _project_name: str
 
-    def __init__(self, credentials: GCPCredentials, resources: GCPResources):
+    def __init__(self, credentials: GCPCredentials, resources: GCPResources, redis_host: str):
         super().__init__()
         self._credentials = credentials
         self._resources = resources
+        self._redis_host = redis_host
 
     @property
     def region(self) -> str:
@@ -165,12 +166,16 @@ class GCPConfig(Config):
     def resources(self) -> GCPResources:
         return self._resources
 
+    @property
+    def redis_host(self) -> str:
+        return self._redis_host
+
     @staticmethod
     def deserialize(config: dict, cache: Cache, handlers: LoggingHandlers) -> "Config":
         cached_config = cache.get_config("gcp")
         credentials = cast(GCPCredentials, GCPCredentials.deserialize(config, cache, handlers))
         resources = cast(GCPResources, GCPResources.deserialize(config, cache, handlers))
-        config_obj = GCPConfig(credentials, resources)
+        config_obj = GCPConfig(credentials, resources, cached_config["redis_host"])
         config_obj.logging_handlers = handlers
         if cached_config:
             config_obj.logging.info("Loading cached config for GCP")
@@ -182,7 +187,8 @@ class GCPConfig(Config):
             if "project_name" not in config or not config["project_name"]:
                 if "GCP_PROJECT_NAME" in os.environ:
                     GCPConfig.initialize(
-                        config_obj, {**config, "project_name": os.environ["GCP_PROJECT_NAME"]}
+                        config_obj,
+                        {**config, "project_name": os.environ["GCP_PROJECT_NAME"]},
                     )
                 else:
                     raise RuntimeError(
@@ -219,6 +225,7 @@ class GCPConfig(Config):
         config = cast(GCPConfig, cfg)
         config._project_name = dct["project_name"]
         config._region = dct["region"]
+        config._redis_host = dct["redis_host"]
 
     def serialize(self) -> dict:
         out = {
@@ -227,6 +234,7 @@ class GCPConfig(Config):
             "region": self._region,
             "credentials": self._credentials.serialize(),
             "resources": self._resources.serialize(),
+            "redis_host": self._redis_host,
         }
         return out
 

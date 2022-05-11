@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, Dict, List, Optional  # noqa
 
+from google.cloud.workflows.executions_v1beta.types import Execution
+
 from sebs.utils import LoggingBase
 
 """
@@ -147,6 +149,12 @@ class ExecutionResult:
             / timedelta(microseconds=1)
         )
 
+    def parse_benchmark_execution(self, execution: Execution):
+        self.output = json.loads(execution.result)
+        self.times.benchmark = int(
+            (execution.start_time - execution.end_time) / timedelta(microseconds=1)
+        )
+
     @staticmethod
     def deserialize(cached_config: dict) -> "ExecutionResult":
         ret = ExecutionResult()
@@ -203,7 +211,9 @@ class Trigger(ABC, LoggingBase):
             output = json.loads(data.getvalue())
 
             if status_code != 200:
-                self.logging.error("Invocation on URL {} failed!".format(url))
+                self.logging.error(
+                    "Invocation on URL {} failed with status code {}!".format(url, status_code)
+                )
                 self.logging.error("Output: {}".format(output))
                 raise RuntimeError(f"Failed invocation of function! Output: {output}")
 
@@ -216,7 +226,9 @@ class Trigger(ABC, LoggingBase):
             result.parse_benchmark_output(output)
             return result
         except json.decoder.JSONDecodeError:
-            self.logging.error("Invocation on URL {} failed!".format(url))
+            self.logging.error(
+                "Invocation on URL {} failed with status code {}!".format(url, status_code)
+            )
             self.logging.error("Output: {}".format(data.getvalue().decode()))
             raise RuntimeError(f"Failed invocation of function! Output: {data.getvalue().decode()}")
 
@@ -238,23 +250,23 @@ class Trigger(ABC, LoggingBase):
     def serialize(self) -> dict:
         pass
 
-    @staticmethod
+    @classmethod
     @abstractmethod
-    def deserialize(cached_config: dict) -> "Trigger":
+    def deserialize(cls, cached_config: dict) -> "Trigger":
         pass
 
 
 """
-    Abstraction base class for FaaS function. Contains a list of associated triggers
+    Abstraction base class for FaaS benchmarks. Contains a list of associated triggers
     and might implement non-trigger execution if supported by the SDK.
     Example: direct function invocation through AWS boto3 SDK.
 """
 
 
-class Function(LoggingBase):
-    def __init__(self, benchmark: str, name: str, code_hash: str):
+class Benchmark(LoggingBase):
+    def __init__(self, code_package: str, name: str, code_hash: str):
         super().__init__()
-        self._benchmark = benchmark
+        self._code_package = code_package
         self._name = name
         self._code_package_hash = code_hash
         self._updated_code = False
@@ -265,8 +277,8 @@ class Function(LoggingBase):
         return self._name
 
     @property
-    def benchmark(self):
-        return self._benchmark
+    def code_package(self):
+        return self._code_package
 
     @property
     def code_package_hash(self):
@@ -303,7 +315,7 @@ class Function(LoggingBase):
         return {
             "name": self._name,
             "hash": self._code_package_hash,
-            "benchmark": self._benchmark,
+            "code_package": self._code_package,
             "triggers": [
                 obj.serialize() for t_type, triggers in self._triggers.items() for obj in triggers
             ],
@@ -311,5 +323,19 @@ class Function(LoggingBase):
 
     @staticmethod
     @abstractmethod
+    def deserialize(cached_config: dict) -> "Benchmark":
+        pass
+
+
+class Function(Benchmark):
+    @staticmethod
+    @abstractmethod
     def deserialize(cached_config: dict) -> "Function":
+        pass
+
+
+class Workflow(Benchmark):
+    @staticmethod
+    @abstractmethod
+    def deserialize(cached_config: dict) -> "Workflow":
         pass
