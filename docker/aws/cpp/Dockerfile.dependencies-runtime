@@ -1,0 +1,14 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE} as builder
+ARG WORKERS
+ENV WORKERS=${WORKERS}
+
+
+RUN yum install -y cmake3 curl libcurl libcurl-devel git gcc gcc-c++ make tar gzip 
+RUN   git clone https://github.com/awslabs/aws-lambda-cpp.git\
+      && cmake3 -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=/opt -B aws-lambda-cpp/build -S aws-lambda-cpp\
+      && cmake3 --build aws-lambda-cpp/build --parallel ${WORKERS} --target install
+
+FROM ${BASE_IMAGE}
+
+COPY --from=builder /opt /opt

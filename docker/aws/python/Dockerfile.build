@@ -4,7 +4,7 @@ ARG VERSION
 ENV PYTHON_VERSION=${VERSION}
 
 # useradd, groupmod
-RUN yum install -y shadow-utils
+RUN yum install -y cmake curl libcurl libcurl-devel
 ENV GOSU_VERSION 1.14
 # https://github.com/tianon/gosu/releases/tag/1.14
 # key https://keys.openpgp.org/search?q=tianon%40debian.org

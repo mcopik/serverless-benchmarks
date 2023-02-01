@@ -63,7 +63,7 @@ def simplified_common_params(func):
     @click.option(
         "--language",
         default=None,
-        type=click.Choice(["python", "nodejs"]),
+        type=click.Choice(["python", "nodejs", "cpp"]),
         help="Benchmark language",
     )
     @click.option("--language-version", default=None, type=str, help="Benchmark language version")

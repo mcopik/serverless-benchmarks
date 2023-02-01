@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Callable, Dict, List, Optional, Type, TypeVar  # noqa
 
+from sebs.types import Language, Architecture
 from sebs.benchmark import Benchmark
 from sebs.utils import LoggingBase
 
@@ -208,6 +209,13 @@ class Trigger(ABC, LoggingBase):
 
         try:
             output = json.loads(data.getvalue())
+            if "body" in output:
+                # AWS C++ trigger returns payload as a dictionary inside "body"
+                # but add a conversion step just in case
+                if isinstance(output["body"], dict):
+                    output = output["body"]
+                else:
+                    output = json.loads(output["body"])
 
             if status_code != 200:
                 self.logging.error("Invocation on URL {} failed!".format(url))
@@ -254,34 +262,6 @@ class Trigger(ABC, LoggingBase):
         pass
 
 
-class Language(Enum):
-    PYTHON = "python"
-    NODEJS = "nodejs"
-
-    # FIXME: 3.7+ python with future annotations
-    @staticmethod
-    def deserialize(val: str) -> Language:
-        for member in Language:
-            if member.value == val:
-                return member
-        raise Exception(f"Unknown language type {member}")
-
-
-class Architecture(Enum):
-    X86 = "x86"
-    ARM = "arm"
-
-    def serialize(self) -> str:
-        return self.value
-
-    @staticmethod
-    def deserialize(val: str) -> Architecture:
-        for member in Architecture:
-            if member.value == val:
-                return member
-        raise Exception(f"Unknown architecture type {member}")
-
-
 @dataclass
 class Runtime:
 
@@ -293,8 +273,7 @@ class Runtime:
 
     @staticmethod
     def deserialize(config: dict) -> Runtime:
-        languages = {"python": Language.PYTHON, "nodejs": Language.NODEJS}
-        return Runtime(language=languages[config["language"]], version=config["version"])
+        return Runtime(language=Language.deserialize(config["language"]), version=config["version"])
 
 
 T = TypeVar("T", bound="FunctionConfig")

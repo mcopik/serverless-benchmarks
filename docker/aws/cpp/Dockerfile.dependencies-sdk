@@ -1,0 +1,14 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE} as builder
+ARG WORKERS
+ENV WORKERS=${WORKERS}
+
+RUN yum install -y cmake3 curl libcurl libcurl-devel git gcc gcc-c++ make zlib-devel openssl-devel
+RUN   git clone --recurse-submodules https://github.com/aws/aws-sdk-cpp.git\
+      && cd aws-sdk-cpp && mkdir build && cd build\
+      && cmake3 -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;dynamodb;sqs" -DENABLE_TESTING=OFF -DCMAKE_INSTALL_PREFIX=/opt/ ..\
+      && cmake3 --build . --parallel ${WORKERS} --target install
+
+FROM ${BASE_IMAGE}
+
+COPY --from=builder /opt /opt

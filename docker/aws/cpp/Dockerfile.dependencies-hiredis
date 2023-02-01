@@ -1,0 +1,12 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE} as builder
+ARG WORKERS
+ENV WORKERS=${WORKERS}
+
+RUN yum install -y git make gcc gcc-c++
+RUN   git clone https://github.com/redis/hiredis.git && cd hiredis\
+      && PREFIX=/opt make -j${WORKERS} install
+
+FROM ${BASE_IMAGE}
+
+COPY --from=builder /opt /opt

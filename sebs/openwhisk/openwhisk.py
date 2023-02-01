@@ -15,6 +15,7 @@ from sebs.utils import PROJECT_DIR, LoggingHandlers, execute
 from .config import OpenWhiskConfig
 from .function import OpenWhiskFunction, OpenWhiskFunctionConfig
 from ..config import SeBSConfig
+from sebs.types import Language
 
 
 class OpenWhisk(System):
@@ -112,7 +113,7 @@ class OpenWhisk(System):
     def build_base_image(
         self,
         directory: str,
-        language_name: str,
+        language: Language,
         language_version: str,
         benchmark: str,
         is_cached: bool,
@@ -133,7 +134,7 @@ class OpenWhisk(System):
         registry_name = self.config.resources.docker_registry
         repository_name = self.system_config.docker_repository()
         image_tag = self.system_config.benchmark_image_tag(
-            self.name(), benchmark, language_name, language_version
+            self.name(), benchmark, language.value, language_version
         )
         if registry_name is not None:
             repository_name = f"{registry_name}/{repository_name}"
@@ -159,7 +160,7 @@ class OpenWhisk(System):
         build_dir = os.path.join(directory, "docker")
         os.makedirs(build_dir)
         shutil.copy(
-            os.path.join(PROJECT_DIR, "docker", self.name(), language_name, "Dockerfile.function"),
+            os.path.join(PROJECT_DIR, "docker", self.name(), language.value, "Dockerfile.function"),
             os.path.join(build_dir, "Dockerfile"),
         )
 
@@ -171,7 +172,7 @@ class OpenWhisk(System):
         with open(os.path.join(build_dir, ".dockerignore"), "w") as f:
             f.write("Dockerfile")
 
-        builder_image = self.system_config.benchmark_base_images(self.name(), language_name)[
+        builder_image = self.system_config.benchmark_base_images(self.name(), language.value)[
             language_version
         ]
         self.logging.info(f"Build the benchmark base image {repository_name}:{image_tag}.")
@@ -200,7 +201,7 @@ class OpenWhisk(System):
     def package_code(
         self,
         directory: str,
-        language_name: str,
+        language: Language,
         language_version: str,
         benchmark: str,
         is_cached: bool,
@@ -208,15 +209,15 @@ class OpenWhisk(System):
 
         # Regardless of Docker image status, we need to create .zip file
         # to allow registration of function with OpenWhisk
-        self.build_base_image(directory, language_name, language_version, benchmark, is_cached)
+        self.build_base_image(directory, language, language_version, benchmark, is_cached)
 
         # We deploy Minio config in code package since this depends on local
         # deployment - it cannnot be a part of Docker image
         CONFIG_FILES = {
-            "python": ["__main__.py"],
-            "nodejs": ["index.js"],
+            Language.PYTHON: ["__main__.py"],
+            Language.NODEJS: ["index.js"],
         }
-        package_config = CONFIG_FILES[language_name]
+        package_config = CONFIG_FILES[language]
 
         benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
         subprocess.run(

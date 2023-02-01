@@ -19,6 +19,7 @@ from sebs.utils import LoggingHandlers
 from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
+from sebs.types import Language
 
 
 class AWS(System):
@@ -125,42 +126,57 @@ class AWS(System):
     def package_code(
         self,
         directory: str,
-        language_name: str,
+        language: Language,
         language_version: str,
         benchmark: str,
         is_cached: bool,
     ) -> Tuple[str, int]:
 
         CONFIG_FILES = {
-            "python": ["handler.py", "requirements.txt", ".python_packages"],
-            "nodejs": ["handler.js", "package.json", "node_modules"],
+            Language.PYTHON: ["handler.py", "requirements.txt", ".python_packages"],
+            Language.NODEJS: ["handler.js", "package.json", "node_modules"],
         }
-        package_config = CONFIG_FILES[language_name]
-        function_dir = os.path.join(directory, "function")
-        os.makedirs(function_dir)
-        # move all files to 'function' except handler.py
-        for file in os.listdir(directory):
-            if file not in package_config:
-                file = os.path.join(directory, file)
-                shutil.move(file, function_dir)
 
-        # FIXME: use zipfile
-        # create zip with hidden directory but without parent directory
-        execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
-        benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
-        self.logging.info("Created {} archive".format(benchmark_archive))
+        if language in [Language.PYTHON, Language.NODEJS]:
+            package_config = CONFIG_FILES[language]
+            function_dir = os.path.join(directory, "function")
+            os.makedirs(function_dir)
+            # move all files to 'function' except handler.py
+            for file in os.listdir(directory):
+                if file not in package_config:
+                    file = os.path.join(directory, file)
+                    shutil.move(file, function_dir)
 
-        bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
-        mbytes = bytes_size / 1024.0 / 1024.0
-        self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+            # FIXME: use zipfile
+            # create zip with hidden directory but without parent directory
+            execute("zip -qu -r9 {}.zip * .".format(benchmark), shell=True, cwd=directory)
+            benchmark_archive = "{}.zip".format(os.path.join(directory, benchmark))
+            self.logging.info("Created {} archive".format(benchmark_archive))
 
-        return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
+            bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
+            mbytes = bytes_size / 1024.0 / 1024.0
+            self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+
+            return os.path.join(directory, "{}.zip".format(benchmark)), bytes_size
+        elif language == Language.CPP:
+
+            # lambda C++ runtime build scripts create the .zip file in build directory
+            benchmark_archive = os.path.join(directory, "build", "benchmark.zip")
+            self.logging.info("Created {} archive".format(benchmark_archive))
+
+            bytes_size = os.path.getsize(os.path.join(directory, benchmark_archive))
+            mbytes = bytes_size / 1024.0 / 1024.0
+            self.logging.info("Zip archive size {:2f} MB".format(mbytes))
+
+            return benchmark_archive, bytes_size
+        else:
+            raise NotImplementedError()
 
     def create_function(self, code_package: Benchmark, func_name: str) -> "LambdaFunction":
 
         package = code_package.code_location
         benchmark = code_package.benchmark
-        language = code_package.language_name
+        language = code_package.language
         language_runtime = code_package.language_version
         timeout = code_package.benchmark_config.timeout
         memory = code_package.benchmark_config.memory
@@ -210,7 +226,7 @@ class AWS(System):
                 code_config = {"S3Bucket": code_bucket, "S3Key": code_package_name}
             ret = self.client.create_function(
                 FunctionName=func_name,
-                Runtime="{}{}".format(language, language_runtime),
+                Runtime=self.cloud_runtime(language, language_runtime),
                 Handler="handler.handler",
                 Role=self.config.resources.lambda_role(self.session),
                 MemorySize=memory,
@@ -534,3 +550,11 @@ class AWS(System):
         waiter = self.client.get_waiter("function_updated_v2")
         waiter.wait(FunctionName=func.name)
         self.logging.info("Lambda function has been updated.")
+
+    def cloud_runtime(self, language: Language, language_version: str):
+        if language in [Language.NODEJS, Language.PYTHON]:
+            return ("{}{}".format(language, language_version),)
+        elif language == Language.CPP:
+            return "provided.al2"
+        else:
+            raise NotImplementedError()

@@ -1,0 +1,32 @@
+
+ARG BASE_REPOSITORY
+ARG BASE_IMAGE
+FROM ${BASE_REPOSITORY}:dependencies-sdk.aws.cpp.all as sdk
+FROM ${BASE_REPOSITORY}:dependencies-boost.aws.cpp.all as boost
+FROM ${BASE_REPOSITORY}:dependencies-hiredis.aws.cpp.all as hiredis
+FROM ${BASE_REPOSITORY}:dependencies-runtime.aws.cpp.all as runtime
+
+FROM ${BASE_IMAGE} as builder
+
+RUN yum install -y cmake3 curl libcurl libcurl-devel git gcc gcc-c++ make tar gzip zip zlib-devel openssl-devel openssl-static
+ENV GOSU_VERSION 1.14
+# https://github.com/tianon/gosu/releases/tag/1.14
+# key https://keys.openpgp.org/search?q=tianon%40debian.org
+RUN curl -o /usr/local/bin/gosu -SL "https://github.com/tianon/gosu/releases/download/${GOSU_VERSION}/gosu-amd64" \
+    && chmod +x /usr/local/bin/gosu
+RUN mkdir -p /sebs/
+COPY docker/entrypoint.sh /sebs/entrypoint.sh
+COPY docker/cpp_installer.sh /sebs/installer.sh
+RUN chmod +x /sebs/entrypoint.sh
+RUN chmod +x /sebs/installer.sh
+
+COPY --from=sdk /opt /opt
+COPY --from=boost /opt /opt
+COPY --from=runtime /opt /opt
+COPY --from=hiredis /opt /opt
+
+# useradd and groupmod is installed in /usr/sbin which is not in PATH
+ENV PATH=/usr/sbin:$PATH
+CMD /bin/bash /sebs/installer.sh
+ENTRYPOINT ["/sebs/entrypoint.sh"]
+

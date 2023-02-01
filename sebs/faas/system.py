@@ -11,6 +11,7 @@ from sebs.config import SeBSConfig
 from sebs.faas.function import Function, Trigger, ExecutionResult
 from sebs.faas.storage import PersistentStorage
 from sebs.utils import LoggingBase
+from sebs.types import Language
 from .config import Config
 
 """
@@ -107,7 +108,7 @@ class System(ABC, LoggingBase):
     def package_code(
         self,
         directory: str,
-        language_name: str,
+        language: Language,
         language_version: str,
         benchmark: str,
         is_cached: bool,
