@@ -1,5 +1,6 @@
 {
   "timeout": 10,
   "memory": 128,
-  "languages": ["python", "nodejs"]
+  "languages": ["python", "nodejs"],
+  "modules": []
 }

@@ -78,6 +78,12 @@ class InvocationOverhead(Experiment):
         self._benchmark = sebs_client.get_benchmark(
             "030.clock-synchronization", deployment_client, self.config
         )
+
+        self.benchmark_input = self._benchmark.prepare_input(
+            deployment_client.system_resources, size="test", replace_existing=True
+        )
+        self._storage = deployment_client.system_resources.get_storage(replace_existing=True)
+
         self._function = deployment_client.get_function(self._benchmark)
 
         triggers = self._function.triggers(Trigger.TriggerType.HTTP)
@@ -88,8 +94,6 @@ class InvocationOverhead(Experiment):
         else:
             self._trigger = triggers[0]
 
-        self._storage = deployment_client.get_storage(replace_existing=True)
-        self.benchmark_input = self._benchmark.prepare_input(storage=self._storage, size="test")
         self._out_dir = os.path.join(
             sebs_client.output_dir, "invocation-overhead", self.settings["type"]
         )

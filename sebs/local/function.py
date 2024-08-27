@@ -68,6 +68,14 @@ class LocalFunction(Function):
         self._measurement_pid = measurement_pid
 
     @property
+    def container(self) -> docker.models.containers.Container:
+        return self._instance
+
+    @container.setter
+    def container(self, instance: docker.models.containers.Container):
+        self._instance = instance
+
+    @property
     def url(self) -> str:
         return self._url
 

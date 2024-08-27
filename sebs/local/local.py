@@ -9,12 +9,11 @@ import docker
 
 from sebs.cache import Cache
 from sebs.config import SeBSConfig
+from sebs.local.resources import LocalSystemResources
 from sebs.utils import LoggingHandlers
 from sebs.local.config import LocalConfig
-from sebs.local.storage import Minio
 from sebs.local.function import LocalFunction
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Trigger
-from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 from sebs.benchmark import Benchmark
 
@@ -67,7 +66,12 @@ class Local(System):
         docker_client: docker.client,
         logger_handlers: LoggingHandlers,
     ):
-        super().__init__(sebs_config, cache_client, docker_client)
+        super().__init__(
+            sebs_config,
+            cache_client,
+            docker_client,
+            LocalSystemResources(config, cache_client, docker_client, logger_handlers),
+        )
         self.logging_handlers = logger_handlers
         self._config = config
         self._remove_containers = True
@@ -76,31 +80,6 @@ class Local(System):
         self._measure_interval = -1
 
         self.initialize_resources(select_prefix="local")
-
-    """
-        Create wrapper object for minio storage and fill buckets.
-        Starts minio as a Docker instance, using always fresh buckets.
-
-        :param benchmark:
-        :param buckets: number of input and output buckets
-        :param replace_existing: not used.
-        :return: Azure storage instance
-    """
-
-    def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
-        if not hasattr(self, "storage"):
-
-            if not self.config.resources.storage_config:
-                raise RuntimeError(
-                    "The local deployment is missing the configuration of pre-allocated storage!"
-                )
-            self.storage = Minio.deserialize(
-                self.config.resources.storage_config, self.cache_client, self.config.resources
-            )
-            self.storage.logging_handlers = self.logging_handlers
-        else:
-            self.storage.replace_existing = replace_existing
-        return self.storage
 
     """
         Shut down minio storage instance.
@@ -155,25 +134,38 @@ class Local(System):
 
         return directory, bytes_size
 
-    def create_function(self, code_package: Benchmark, func_name: str) -> "LocalFunction":
+    def _start_container(
+        self, code_package: Benchmark, func_name: str, func: Optional[LocalFunction]
+    ) -> LocalFunction:
 
         container_name = "{}:run.local.{}.{}".format(
             self._system_config.docker_repository(),
             code_package.language_name,
             code_package.language_version,
         )
+
         environment: Dict[str, str] = {}
         if self.config.resources.storage_config:
+
             environment = {
-                "MINIO_ADDRESS": self.config.resources.storage_config.address,
-                "MINIO_ACCESS_KEY": self.config.resources.storage_config.access_key,
-                "MINIO_SECRET_KEY": self.config.resources.storage_config.secret_key,
+                **self.config.resources.storage_config.envs(),
                 "CONTAINER_UID": str(os.getuid()),
                 "CONTAINER_GID": str(os.getgid()),
                 "CONTAINER_USER": self._system_config.username(
                     self.name(), code_package.language_name
                 ),
             }
+
+        if code_package.uses_nosql:
+
+            nosql_storage = self.system_resources.get_nosql_storage()
+            environment = {**environment, **nosql_storage.envs()}
+
+            for original_name, actual_name in nosql_storage.get_tables(
+                code_package.benchmark
+            ).items():
+                environment[f"NOSQL_STORAGE_TABLE_{original_name}"] = actual_name
+
         container = self._docker_client.containers.run(
             image=container_name,
             command=f"/bin/bash /sebs/run_server.sh {self.DEFAULT_PORT}",
@@ -213,16 +205,20 @@ class Local(System):
             )
             pid = proc.pid
 
-        function_cfg = FunctionConfig.from_benchmark(code_package)
-        func = LocalFunction(
-            container,
-            self.DEFAULT_PORT,
-            func_name,
-            code_package.benchmark,
-            code_package.hash,
-            function_cfg,
-            pid,
-        )
+        if func is None:
+            function_cfg = FunctionConfig.from_benchmark(code_package)
+            func = LocalFunction(
+                container,
+                self.DEFAULT_PORT,
+                func_name,
+                code_package.benchmark,
+                code_package.hash,
+                function_cfg,
+                pid,
+            )
+        else:
+            func.container = container
+            func._measurement_pid = pid
 
         # Wait until server starts
         max_attempts = 10
@@ -238,20 +234,27 @@ class Local(System):
         if attempts == max_attempts:
             raise RuntimeError(
                 f"Couldn't start {func_name} function at container "
-                f"{container.id} , running on {func._url}"
+                f"{container.id} , running on {func.url}"
             )
 
         self.logging.info(
             f"Started {func_name} function at container {container.id} , running on {func._url}"
         )
+
         return func
 
+    def create_function(self, code_package: Benchmark, func_name: str) -> "LocalFunction":
+        return self._start_container(code_package, func_name, None)
+
     """
-        FIXME: restart Docker?
+        Restart Docker container
     """
 
     def update_function(self, function: Function, code_package: Benchmark):
-        pass
+        func = cast(LocalFunction, function)
+        func.stop()
+        self.logging.info("Allocating a new function container with updated code")
+        self._start_container(code_package, function.name, func)
 
     """
         For local functions, we don't need to do anything for a cached function.

@@ -1,5 +1,6 @@
 {
   "timeout": 60,
   "memory": 2048,
-  "languages": ["python"]
+  "languages": ["python"],
+  "modules": ["storage"]
 }

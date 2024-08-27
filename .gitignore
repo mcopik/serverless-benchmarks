@@ -5,6 +5,9 @@ perf-cost*
 python-venv
 *cache*
 
+minio-volume
+scylladb-volume
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

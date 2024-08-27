@@ -6,15 +6,16 @@ import logging
 import functools
 import os
 import traceback
-from typing import cast, Optional
+from typing import cast, List, Optional
 
 import click
 
 import sebs
 from sebs import SeBS
 from sebs.types import Storage as StorageTypes
+from sebs.types import NoSQLStorage as NoSQLStorageTypes
 from sebs.regression import regression_suite
-from sebs.utils import update_nested_dict, catch_interrupt
+from sebs.utils import update_nested_dict, append_nested_dict, catch_interrupt
 from sebs.faas import System as FaaSSystem
 from sebs.faas.function import Trigger
 
@@ -120,7 +121,7 @@ def parse_common_params(
     resource_prefix: Optional[str] = None,
     initialize_deployment: bool = True,
     ignore_cache: bool = False,
-    storage_configuration: Optional[str] = None
+    storage_configuration: Optional[List[str]] = None
 ):
 
     global sebs_client, deployment_client
@@ -140,9 +141,13 @@ def parse_common_params(
     update_nested_dict(config_obj, ["experiments", "update_code"], update_code)
     update_nested_dict(config_obj, ["experiments", "update_storage"], update_storage)
 
-    if storage_configuration:
-        cfg = json.load(open(storage_configuration, 'r'))
-        update_nested_dict(config_obj, ["deployment", deployment, "storage"], cfg)
+    if storage_configuration is not None:
+
+        for cfg_f in storage_configuration:
+            sebs_client.logging.info(f"Loading storage configuration from {cfg_f}")
+
+            cfg = json.load(open(cfg_f, 'r'))
+            append_nested_dict(config_obj, ["deployment", deployment, "storage"], cfg)
 
     if initialize_deployment:
         deployment_client = sebs_client.get_deployment(
@@ -206,6 +211,7 @@ def benchmark():
     type=str,
     help="Attach prefix to generated Docker image tag.",
 )
+@click.option("--storage-configuration", type=str, multiple=True, help="JSON configuration of deployed storage.")
 @common_params
 def invoke(
     benchmark,
@@ -242,12 +248,12 @@ def invoke(
     if timeout is not None:
         benchmark_obj.benchmark_config.timeout = timeout
 
+    input_config = benchmark_obj.prepare_input(deployment_client.system_resources, size=benchmark_input_size, replace_existing=experiment_config.update_storage)
+
     func = deployment_client.get_function(
         benchmark_obj,
         function_name if function_name else deployment_client.default_function_name(benchmark_obj),
     )
-    storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
-    input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
 
     result = sebs.experiments.ExperimentResult(experiment_config, deployment_client.config)
     result.begin()
@@ -344,59 +350,109 @@ def regression(benchmark_input_size, benchmark_name, **kwargs):
     )
 
 
+"""
+    Storage operations have the following characteristics:
+    - Two operations, start and stop.
+    - Three options, object storage, NoSQL storage, and all.
+    - Port and additional settings.
+
+    Configuration is read from a JSON.
+"""
+
+
 @cli.group()
 def storage():
     pass
 
 
 @storage.command("start")
-@click.argument("storage", type=click.Choice([StorageTypes.MINIO]))
+@click.argument("storage", type=click.Choice(["object", "nosql", "all"]))
+@click.argument("config", type=click.Path(dir_okay=False, readable=True))
 @click.option("--output-json", type=click.Path(dir_okay=False, writable=True), default=None)
-@click.option("--port", type=int, default=9000)
-def storage_start(storage, output_json, port):
+def storage_start(storage, config, output_json):
 
     import docker
 
     sebs.utils.global_logging()
-    storage_type = sebs.SeBS.get_storage_implementation(StorageTypes(storage))
-    storage_config, storage_resources = sebs.SeBS.get_storage_config_implementation(StorageTypes(storage))
-    config = storage_config()
-    resources = storage_resources()
+    user_storage_config = json.load(open(config, 'r'))
 
-    storage_instance = storage_type(docker.from_env(), None, resources, True)
-    logging.info(f"Starting storage {str(storage)} on port {port}.")
-    storage_instance.start(port)
+    if storage in ["object", "all"]:
+
+        storage_type_name = user_storage_config["object"]["type"]
+        storage_type_enum = StorageTypes(storage_type_name)
+
+        storage_type = sebs.SeBS.get_storage_implementation(storage_type_enum)
+        storage_config = sebs.SeBS.get_storage_config_implementation(storage_type_enum)
+        config = storage_config.deserialize(user_storage_config["object"][storage_type_name])
+
+        storage_instance = storage_type(docker.from_env(), None, None, True)
+        storage_instance.config = config
+
+        storage_instance.start()
+
+        user_storage_config["object"][storage_type_name] = storage_instance.serialize()
+    else:
+        user_storage_config.pop("object")
+
+    if storage in ["nosql", "all"]:
+
+        storage_type_name = user_storage_config["nosql"]["type"]
+        storage_type_enum = NoSQLStorageTypes(storage_type_name)
+
+        storage_type = sebs.SeBS.get_nosql_implementation(storage_type_enum)
+        storage_config = sebs.SeBS.get_nosql_config_implementation(storage_type_enum)
+        config = storage_config.deserialize(user_storage_config["nosql"][storage_type_name])
+
+        storage_instance = storage_type(docker.from_env(), None, config)
+
+        storage_instance.start()
+
+        key, value = storage_instance.serialize()
+        user_storage_config["nosql"][key] = value
+    else:
+        user_storage_config.pop("nosql")
+
     if output_json:
         logging.info(f"Writing storage configuration to {output_json}.")
         with open(output_json, "w") as f:
-            json.dump(storage_instance.serialize(), fp=f, indent=2)
+            json.dump(user_storage_config, fp=f, indent=2)
     else:
         logging.info("Writing storage configuration to stdout.")
-        logging.info(json.dumps(storage_instance.serialize(), indent=2))
+        logging.info(json.dumps(user_storage_config, indent=2))
 
 
 @storage.command("stop")
+@click.argument("storage", type=click.Choice(["object", "nosql", "all"]))
 @click.argument("input-json", type=click.Path(exists=True, dir_okay=False, readable=True))
-def storage_stop(input_json):
+def storage_stop(storage, input_json):
 
     sebs.utils.global_logging()
     with open(input_json, "r") as f:
         cfg = json.load(f)
-        storage_type = cfg["type"]
 
-        storage_cfg, storage_resources = sebs.SeBS.get_storage_config_implementation(storage_type)
-        config = storage_cfg.deserialize(cfg)
+    if storage in ["object", "all"]:
 
-        if "resources" in cfg:
-            resources = storage_resources.deserialize(cfg["resources"])
-        else:
-            resources = storage_resources()
+        storage_type = cfg["object"]["type"]
+
+        storage_cfg = sebs.SeBS.get_storage_config_implementation(storage_type)
+        config = storage_cfg.deserialize(cfg["object"][storage_type])
 
         logging.info(f"Stopping storage deployment of {storage_type}.")
-        storage = sebs.SeBS.get_storage_implementation(storage_type).deserialize(config, None, resources)
+        storage = sebs.SeBS.get_storage_implementation(storage_type).deserialize(config, None, None)
         storage.stop()
         logging.info(f"Stopped storage deployment of {storage_type}.")
 
+    if storage in ["nosql", "all"]:
+
+        storage_type = cfg["nosql"]["type"]
+
+        storage_cfg = sebs.SeBS.get_nosql_config_implementation(storage_type)
+        config = storage_cfg.deserialize(cfg["nosql"][storage_type])
+
+        logging.info(f"Stopping nosql deployment of {storage_type}.")
+        storage = sebs.SeBS.get_nosql_implementation(storage_type).deserialize(config, None, None)
+        storage.stop()
+        logging.info(f"Stopped nosql deployment of {storage_type}.")
 
 @cli.group()
 def local():
@@ -408,7 +464,7 @@ def local():
 @click.argument("benchmark-input-size", type=click.Choice(["test", "small", "large"]))
 @click.argument("output", type=str)
 @click.option("--deployments", default=1, type=int, help="Number of deployed containers.")
-@click.option("--storage-configuration", type=str, help="JSON configuration of deployed storage.")
+@click.option("--storage-configuration", type=str, multiple=True, help="JSON configuration of deployed storage.")
 @click.option("--measure-interval", type=int, default=-1,
               help="Interval duration between memory measurements in ms.")
 @click.option(
@@ -439,9 +495,12 @@ def start(benchmark, benchmark_input_size, output, deployments, storage_configur
         experiment_config,
         logging_filename=logging_filename,
     )
-    storage = deployment_client.get_storage(replace_existing=experiment_config.update_storage)
-    result.set_storage(storage)
-    input_config = benchmark_obj.prepare_input(storage=storage, size=benchmark_input_size)
+    input_config = benchmark_obj.prepare_input(
+        deployment_client.system_resources,
+        size=benchmark_input_size,
+        replace_existing=experiment_config.update_storage
+    )
+    result.set_storage(deployment_client.system_resources.get_storage())
     result.add_input(input_config)
 
     for i in range(deployments):

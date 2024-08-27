@@ -26,6 +26,13 @@ class SeBSConfig:
             "packages"
         ]
 
+    def deployment_module_packages(
+        self, deployment_name: str, language_name: str
+    ) -> Dict[str, str]:
+        return self._system_config[deployment_name]["languages"][language_name]["deployment"][
+            "module_packages"
+        ]
+
     def deployment_files(self, deployment_name: str, language_name: str) -> List[str]:
         return self._system_config[deployment_name]["languages"][language_name]["deployment"][
             "files"

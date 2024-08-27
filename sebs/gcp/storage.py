@@ -3,7 +3,7 @@ import os
 import uuid
 from typing import List, Optional
 
-from google.cloud import storage as gcp_storage
+import google.cloud.storage as gcp_storage
 from google.api_core import exceptions
 
 from sebs.cache import Cache

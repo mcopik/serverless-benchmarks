@@ -8,6 +8,8 @@ from typing import cast, Dict, List, Optional, Tuple, Type, Union  # noqa
 import boto3
 import docker
 
+from sebs.aws.dynamodb import DynamoDB
+from sebs.aws.resources import AWSSystemResources
 from sebs.aws.s3 import S3
 from sebs.aws.function import LambdaFunction
 from sebs.aws.config import AWSConfig
@@ -18,7 +20,6 @@ from sebs.cache import Cache
 from sebs.config import SeBSConfig
 from sebs.utils import LoggingHandlers
 from sebs.faas.function import Function, ExecutionResult, Trigger, FunctionConfig
-from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
 
 
@@ -43,6 +44,10 @@ class AWS(System):
     def config(self) -> AWSConfig:
         return self._config
 
+    @property
+    def system_resources(self) -> AWSSystemResources:
+        return cast(AWSSystemResources, self._system_resources)
+
     """
         :param cache_client: Function cache instance
         :param config: Experiments config
@@ -57,10 +62,16 @@ class AWS(System):
         docker_client: docker.client,
         logger_handlers: LoggingHandlers,
     ):
-        super().__init__(sebs_config, cache_client, docker_client)
+        super().__init__(
+            sebs_config,
+            cache_client,
+            docker_client,
+            AWSSystemResources(config, cache_client, docker_client, logger_handlers),
+        )
         self.logging_handlers = logger_handlers
         self._config = config
         self.storage: Optional[S3] = None
+        self.nosql_storage: Optional[DynamoDB] = None
 
     def initialize(self, config: Dict[str, str] = {}, resource_prefix: Optional[str] = None):
         # thread-safe
@@ -69,8 +80,9 @@ class AWS(System):
             aws_secret_access_key=self.config.credentials.secret_key,
         )
         self.get_lambda_client()
-        self.get_storage()
         self.initialize_resources(select_prefix=resource_prefix)
+
+        self.system_resources.initialize_session(self.session)
 
     def get_lambda_client(self):
         if not hasattr(self, "client"):
@@ -79,33 +91,6 @@ class AWS(System):
                 region_name=self.config.region,
             )
         return self.client
-
-    """
-        Create a client instance for cloud storage. When benchmark and buckets
-        parameters are passed, then storage is initialized with required number
-        of buckets. Buckets may be created or retrieved from cache.
-
-        :param benchmark: benchmark name
-        :param buckets: tuple of required input/output buckets
-        :param replace_existing: replace existing files in cached buckets?
-        :return: storage client
-    """
-
-    def get_storage(self, replace_existing: bool = False) -> PersistentStorage:
-        if not self.storage:
-            self.storage = S3(
-                self.session,
-                self.cache_client,
-                self.config.resources,
-                self.config.region,
-                access_key=self.config.credentials.access_key,
-                secret_key=self.config.credentials.secret_key,
-                replace_existing=replace_existing,
-            )
-            self.storage.logging_handlers = self.logging_handlers
-        else:
-            self.storage.replace_existing = replace_existing
-        return self.storage
 
     """
         It would be sufficient to just pack the code and ship it as zip to AWS.
@@ -178,7 +163,6 @@ class AWS(System):
         code_size = code_package.code_size
         code_bucket: Optional[str] = None
         func_name = AWS.format_function_name(func_name)
-        storage_client = self.get_storage()
         function_cfg = FunctionConfig.from_benchmark(code_package)
 
         # we can either check for exception or use list_functions
@@ -216,6 +200,7 @@ class AWS(System):
             else:
                 code_package_name = cast(str, os.path.basename(package))
 
+                storage_client = self.system_resources.get_storage()
                 code_bucket = storage_client.get_bucket(Resources.StorageBucketType.DEPLOYMENT)
                 code_prefix = os.path.join(benchmark, code_package_name)
                 storage_client.upload(code_bucket, package, code_prefix)
@@ -246,6 +231,9 @@ class AWS(System):
             )
 
             self.wait_function_active(lambda_function)
+
+            # Update environment variables
+            self.update_function_configuration(lambda_function, code_package)
 
         # Add LibraryTrigger to a new function
         from sebs.aws.triggers import LibraryTrigger
@@ -291,8 +279,8 @@ class AWS(System):
         # Upload code package to S3, then update
         else:
             code_package_name = os.path.basename(package)
-            storage = cast(S3, self.get_storage())
-            bucket = function.code_bucket(code_package.benchmark, storage)
+            storage = self.system_resources.get_storage()
+            bucket = function.code_bucket(code_package.benchmark, cast(S3, storage))
             storage.upload(bucket, package, code_package_name)
             self.client.update_function_code(
                 FunctionName=name, S3Bucket=bucket, S3Key=code_package_name
@@ -300,21 +288,49 @@ class AWS(System):
         self.wait_function_updated(function)
         self.logging.info(f"Updated code of {name} function. ")
         # and update config
-        self.client.update_function_configuration(
-            FunctionName=name, Timeout=function.config.timeout, MemorySize=function.config.memory
-        )
-        self.wait_function_updated(function)
-        self.logging.info(f"Updated configuration of {name} function. ")
-        self.wait_function_updated(function)
+        self.update_function_configuration(function, code_package)
+
         self.logging.info("Published new function code")
 
-    def update_function_configuration(self, function: Function, benchmark: Benchmark):
+    def update_function_configuration(self, function: Function, code_package: Benchmark):
+
+        # We can only update storage configuration once it has been processed for this benchmark
+        assert code_package.has_input_processed
+
+        envs = {}
+        if code_package.uses_nosql:
+
+            nosql_storage = self.system_resources.get_nosql_storage()
+            for original_name, actual_name in nosql_storage.get_tables(
+                code_package.benchmark
+            ).items():
+                envs[f"NOSQL_STORAGE_TABLE_{original_name}"] = actual_name
+
+        # AWS Lambda will overwrite existing variables
+        # If we modify them, we need to first read existing ones and append.
+        if len(envs) > 0:
+
+            response = self.client.get_function_configuration(FunctionName=function.name)
+            # preserve old variables while adding new ones.
+            # but for conflict, we select the new one
+            if "Environment" in response:
+                envs = {**response["Environment"]["Variables"], **envs}
+
         function = cast(LambdaFunction, function)
-        self.client.update_function_configuration(
-            FunctionName=function.name,
-            Timeout=function.config.timeout,
-            MemorySize=function.config.memory,
-        )
+        # We only update envs if anything new was added
+        if len(envs) > 0:
+            self.client.update_function_configuration(
+                FunctionName=function.name,
+                Timeout=function.config.timeout,
+                MemorySize=function.config.memory,
+                Environment={"Variables": envs},
+            )
+        else:
+            self.client.update_function_configuration(
+                FunctionName=function.name,
+                Timeout=function.config.timeout,
+                MemorySize=function.config.memory,
+            )
         self.wait_function_updated(function)
         self.logging.info(f"Updated configuration of {function.name} function. ")
 

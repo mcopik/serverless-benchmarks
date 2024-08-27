@@ -3,7 +3,6 @@ from typing import Optional, Dict, Type
 
 import docker
 
-import sebs.storage
 from sebs import types
 from sebs.local import Local
 from sebs.cache import Cache
@@ -11,7 +10,9 @@ from sebs.config import SeBSConfig
 from sebs.benchmark import Benchmark
 from sebs.faas.system import System as FaaSSystem
 from sebs.faas.storage import PersistentStorage
+from sebs.faas.nosql import NoSQLStorage
 from sebs.faas.config import Config
+from sebs.storage import minio, config, scylladb
 from sebs.utils import has_platform, LoggingHandlers, LoggingBase
 
 from sebs.experiments.config import Config as ExperimentConfig
@@ -180,19 +181,28 @@ class SeBS(LoggingBase):
 
     @staticmethod
     def get_storage_implementation(storage_type: types.Storage) -> Type[PersistentStorage]:
-        _storage_implementations = {types.Storage.MINIO: sebs.storage.minio.Minio}
+        _storage_implementations = {types.Storage.MINIO: minio.Minio}
+        impl = _storage_implementations.get(storage_type)
+        assert impl
+        return impl
+
+    @staticmethod
+    def get_nosql_implementation(storage_type: types.NoSQLStorage) -> Type[NoSQLStorage]:
+        _storage_implementations = {types.NoSQLStorage.SCYLLADB: scylladb.ScyllaDB}
         impl = _storage_implementations.get(storage_type)
         assert impl
         return impl
 
     @staticmethod
     def get_storage_config_implementation(storage_type: types.Storage):
-        _storage_implementations = {
-            types.Storage.MINIO: (
-                sebs.storage.config.MinioConfig,
-                sebs.storage.config.MinioResources,
-            )
-        }
+        _storage_implementations = {types.Storage.MINIO: config.MinioConfig}
+        impl = _storage_implementations.get(storage_type)
+        assert impl
+        return impl
+
+    @staticmethod
+    def get_nosql_config_implementation(storage_type: types.NoSQLStorage):
+        _storage_implementations = {types.NoSQLStorage.SCYLLADB: config.ScyllaDBConfig}
         impl = _storage_implementations.get(storage_type)
         assert impl
         return impl

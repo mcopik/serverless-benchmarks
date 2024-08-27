@@ -60,6 +60,14 @@ def update_nested_dict(cfg: dict, keys: List[str], value: Optional[str]):
         cfg[keys[-1]] = value
 
 
+def append_nested_dict(cfg: dict, keys: List[str], value: Optional[dict]):
+    if value:
+        # make sure parent keys exist
+        for key in keys[:-1]:
+            cfg = cfg.setdefault(key, {})
+        cfg[keys[-1]] = {**cfg[keys[-1]], **value}
+
+
 def find(name, path):
     for root, dirs, files in os.walk(path):
         if name in dirs:

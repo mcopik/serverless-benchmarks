@@ -148,17 +148,50 @@ class Cache(LoggingBase):
     """
 
     def get_storage_config(self, deployment: str, benchmark: str):
+        return self._get_resource_config(deployment, benchmark, "storage")
+
+    def get_nosql_config(self, deployment: str, benchmark: str):
+        return self._get_resource_config(deployment, benchmark, "nosql")
+
+    def _get_resource_config(self, deployment: str, benchmark: str, resource: str):
         cfg = self.get_benchmark_config(deployment, benchmark)
-        return cfg["storage"] if cfg and "storage" in cfg and not self.ignore_storage else None
+        return cfg[resource] if cfg and resource in cfg and not self.ignore_storage else None
 
     def update_storage(self, deployment: str, benchmark: str, config: dict):
         if self.ignore_storage:
             return
+        self._update_resources(deployment, benchmark, "storage", config)
+
+    def update_nosql(self, deployment: str, benchmark: str, config: dict):
+        if self.ignore_storage:
+            return
+        self._update_resources(deployment, benchmark, "nosql", config)
+
+    def _update_resources(self, deployment: str, benchmark: str, resource: str, config: dict):
+        if self.ignore_storage:
+            return
+
+        """
+            We are now preparing benchmark data before caching function.
+            Thus, we have to take over a situation where the cache directory does not exist.
+        """
+
         benchmark_dir = os.path.join(self.cache_dir, benchmark)
+        os.makedirs(benchmark_dir, exist_ok=True)
+
         with self._lock:
-            with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
-                cached_config = json.load(fp)
-            cached_config[deployment]["storage"] = config
+
+            if os.path.exists(os.path.join(benchmark_dir, "config.json")):
+                with open(os.path.join(benchmark_dir, "config.json"), "r") as fp:
+                    cached_config = json.load(fp)
+            else:
+                cached_config = {}
+
+            if deployment in cached_config:
+                cached_config[deployment][resource] = config
+            else:
+                cached_config[deployment] = {resource: config}
+
             with open(os.path.join(benchmark_dir, "config.json"), "w") as fp:
                 json.dump(cached_config, fp, indent=2)
 

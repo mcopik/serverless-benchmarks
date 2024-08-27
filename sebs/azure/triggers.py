@@ -31,7 +31,6 @@ class HTTPTrigger(AzureTrigger):
 
     def sync_invoke(self, payload: dict) -> ExecutionResult:
 
-        payload["connection_string"] = self.data_storage_account.connection_string
         return self._http_invoke(payload, self.url)
 
     def async_invoke(self, payload: dict) -> concurrent.futures.Future:

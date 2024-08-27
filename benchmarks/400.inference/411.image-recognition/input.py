@@ -21,7 +21,7 @@ def upload_files(data_root, data_dir, upload_func):
     :param output_buckets:
     :param upload_func: upload function taking three params(bucket_idx, key, filepath)
 '''
-def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func):
+def generate_input(data_dir, size, benchmarks_bucket, input_paths, output_paths, upload_func, nosql_func):
 
     # upload model
     model_name = 'resnet50-19c8e357.pth'

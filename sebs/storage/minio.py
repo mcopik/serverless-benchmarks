@@ -14,6 +14,7 @@ from sebs.types import Storage as StorageTypes
 from sebs.faas.config import Resources
 from sebs.faas.storage import PersistentStorage
 from sebs.storage.config import MinioConfig
+from sebs.utils import project_absolute_path
 
 
 class Minio(PersistentStorage):
@@ -44,6 +45,10 @@ class Minio(PersistentStorage):
     def config(self) -> MinioConfig:
         return self._cfg
 
+    @config.setter
+    def config(self, config: MinioConfig):
+        self._cfg = config
+
     @staticmethod
     def _define_http_client():
         """
@@ -63,17 +68,31 @@ class Minio(PersistentStorage):
             ),
         )
 
-    def start(self, port: int = 9000):
+    def start(self):
 
-        self._cfg.mapped_port = port
+        if self._cfg.data_volume == "":
+            minio_volume = os.path.join(project_absolute_path(), "minio-volume")
+        else:
+            minio_volume = self._cfg.data_volume
+        minio_volume = os.path.abspath(minio_volume)
+
+        os.makedirs(minio_volume, exist_ok=True)
+        volumes = {
+            minio_volume: {
+                "bind": "/data",
+                "mode": "rw",
+            }
+        }
+
         self._cfg.access_key = secrets.token_urlsafe(32)
         self._cfg.secret_key = secrets.token_hex(32)
         self._cfg.address = ""
         self.logging.info("Minio storage ACCESS_KEY={}".format(self._cfg.access_key))
         self.logging.info("Minio storage SECRET_KEY={}".format(self._cfg.secret_key))
         try:
+            self.logging.info(f"Starting storage Minio on port {self._cfg.mapped_port}")
             self._storage_container = self._docker_client.containers.run(
-                "minio/minio:latest",
+                f"minio/minio:{self._cfg.version}",
                 command="server /data",
                 network_mode="bridge",
                 ports={"9000": str(self._cfg.mapped_port)},
@@ -81,6 +100,7 @@ class Minio(PersistentStorage):
                     "MINIO_ACCESS_KEY": self._cfg.access_key,
                     "MINIO_SECRET_KEY": self._cfg.secret_key,
                 },
+                volumes=volumes,
                 remove=True,
                 stdout=True,
                 stderr=True,
@@ -238,6 +258,14 @@ class Minio(PersistentStorage):
             **self._cfg.serialize(),
             "type": StorageTypes.MINIO,
         }
+
+    """
+        This implementation supports overriding this class.
+        The main Minio class is used to start/stop deployments.
+
+        When overriding the implementation in Local/OpenWhisk/...,
+        we call the _deserialize and provide an alternative implementation.
+    """
 
     T = TypeVar("T", bound="Minio")
 

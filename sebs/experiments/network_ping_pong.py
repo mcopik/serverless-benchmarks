@@ -28,9 +28,14 @@ class NetworkPingPong(Experiment):
         benchmark = sebs_client.get_benchmark(
             "020.network-benchmark", deployment_client, self.config
         )
+
+        self.benchmark_input = benchmark.prepare_input(
+            deployment_client.system_resources, size="test", replace_existing=True
+        )
+        self._storage = deployment_client.system_resources.get_storage(replace_existing=True)
+
         self._function = deployment_client.get_function(benchmark)
-        self._storage = deployment_client.get_storage(replace_existing=True)
-        self.benchmark_input = benchmark.prepare_input(storage=self._storage, size="test")
+
         self._out_dir = os.path.join(sebs_client.output_dir, "network-ping-pong")
         if not os.path.exists(self._out_dir):
             # shutil.rmtree(self._out_dir)

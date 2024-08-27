@@ -3,10 +3,11 @@ import logging
 import os
 import re
 import uuid
-from typing import cast, Any, Dict, List, Optional  # noqa
+from typing import cast, Dict, List, Optional
 
 
 from sebs.azure.cli import AzureCLI
+from sebs.azure.cloud_resources import CosmosDBAccount
 from sebs.cache import Cache
 from sebs.faas.config import Config, Credentials, Resources
 from sebs.utils import LoggingHandlers
@@ -154,11 +155,13 @@ class AzureResources(Resources):
         resource_group: Optional[str] = None,
         storage_accounts: List["AzureResources.Storage"] = [],
         data_storage_account: Optional["AzureResources.Storage"] = None,
+        cosmosdb_account: Optional[CosmosDBAccount] = None,
     ):
         super().__init__(name="azure")
         self._resource_group = resource_group
         self._storage_accounts = storage_accounts
         self._data_storage_account = data_storage_account
+        self._cosmosdb_account = cosmosdb_account
 
     def set_region(self, region: str):
         self._region = region
@@ -221,6 +224,68 @@ class AzureResources(Resources):
             self.logging.error("Failed to delete the resource group!")
             self.logging.error(ret.decode())
             raise RuntimeError("Failed to delete the resource group!")
+
+    """
+        Find or create a serverless CosmosDB account.
+        If not found, then create a new one based on the current resource ID.
+        Restriction: account names must be globally unique.
+
+        Requires Azure CLI instance in Docker.
+    """
+
+    def cosmosdb_account(self, cli_instance: AzureCLI) -> CosmosDBAccount:
+        # Create resource group if not known
+        if not self._cosmosdb_account:
+
+            # Only hyphen and alphanumeric characters are allowed
+            account_name = f"sebs-cosmosdb-account-{self.resources_id}"
+            account_name = account_name.replace("_", "-")
+            account_name = account_name.replace(".", "-")
+
+            accounts = self.list_cosmosdb_accounts(cli_instance)
+            if account_name in accounts:
+
+                self.logging.info("Using existing CosmosDB account {}.".format(account_name))
+                url = accounts[account_name]
+
+            else:
+
+                try:
+                    self.logging.info(f"Starting allocation of CosmosDB account {account_name}")
+                    self.logging.info("This can take few minutes :-)!")
+                    ret = cli_instance.execute(
+                        f" az cosmosdb create --name {account_name} "
+                        f" --resource-group {self._resource_group} "
+                        f' --locations regionName="{self._region}" '
+                        " --capabilities EnableServerless "
+                    )
+                    ret_values = json.loads(ret.decode())
+                    url = ret_values["documentEndpoint"]
+                    self.logging.info(f"Allocated CosmosDB account {account_name}")
+                except Exception:
+                    self.logging.error("Failed to parse the response!")
+                    self.logging.error(ret.decode())
+                    raise RuntimeError("Failed to parse response from Azure CLI!")
+
+            self._cosmosdb_account = CosmosDBAccount.from_allocation(
+                account_name, self.resource_group(cli_instance), cli_instance, url
+            )
+
+        return self._cosmosdb_account
+
+    def list_cosmosdb_accounts(self, cli_instance: AzureCLI) -> Dict[str, str]:
+
+        ret = cli_instance.execute(
+            f" az cosmosdb list --resource-group {self._resource_group} "
+            " --query \"[?starts_with(name,'sebs-cosmosdb-account')]\" "
+        )
+        try:
+            accounts = json.loads(ret.decode())
+            return {x["name"]: x["documentEndpoint"] for x in accounts}
+        except Exception:
+            self.logging.error("Failed to parse the response!")
+            self.logging.error(ret.decode())
+            raise RuntimeError("Failed to parse response from Azure CLI!")
 
     """
         Retrieve or create storage account associated with benchmark data.
@@ -317,10 +382,14 @@ class AzureResources(Resources):
             ]
         else:
             ret._storage_accounts = []
+
         if "data_storage_account" in dct:
             ret._data_storage_account = AzureResources.Storage.deserialize(
                 dct["data_storage_account"]
             )
+
+        if "cosmosdb_account" in dct:
+            ret._cosmosdb_account = CosmosDBAccount.deserialize(dct["cosmosdb_account"])
 
     def serialize(self) -> dict:
         out = super().serialize()
@@ -328,6 +397,8 @@ class AzureResources(Resources):
             out["storage_accounts"] = [x.serialize() for x in self._storage_accounts]
         if self._resource_group:
             out["resource_group"] = self._resource_group
+        if self._cosmosdb_account:
+            out["cosmosdb_account"] = self._cosmosdb_account.serialize()
         if self._data_storage_account:
             out["data_storage_account"] = self._data_storage_account.serialize()
         return out

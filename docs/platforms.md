@@ -12,6 +12,12 @@ points for each platform.
 > [!WARNING]
 > On many platforms, credentials can be provided as environment variables or through the SeBS configuration. SeBS will not store your credentials in the cache. When saving results, SeBS stores user benchmark and experiment configuration for documentation and reproducibility, except for credentials that are erased. If you provide the credentials through JSON input configuration, do not commit nor publish these files anywhere.
 
+Supported platforms
+* [Amazon Web Services (AWS) Lambda](#aws-lambda)
+* [Microsoft Azure Functions](#azure-functions)
+* [Google Cloud (GCP) Functions](#google-cloud-functions)
+* [OpenWhisk](#openwhisk)
+
 ### Cloud Account Identifiers
 
 SeBS ensures that all locally cached cloud resources are valid by storing a unique identifier associated with each cloud account. Furthermore, we store this identifier in experiment results to easily match results with the cloud account or subscription that was used to obtain them. We use non-sensitive identifiers such as account IDs on AWS, subscription IDs on Azure, and Google Cloud project IDs.
@@ -125,6 +131,8 @@ The Google Cloud Free Tier gives free resources. It has two parts:
 - Always Free, which provides limited access to many common Google Cloud resources, free of charge.
 
 You need to create an account and add [service account](https://cloud.google.com/iam/docs/service-accounts) to permit operating on storage and functions. From the cloud problem, download the cloud credentials saved as a JSON file.
+You should have at least write access to **Cloud Functions** (`Cloud Functions Admin`) and **Logging** Furthermore, SeBS needs the permissions to create Firestore databases through
+Google Cloud CLI tool; the `Firestore Service Agent` role allows for that.
 
 You can pass the credentials either using the default GCP-specific environment variable:
 

@@ -1,0 +1,20 @@
+{
+  "object": {
+    "type": "minio",
+    "minio": {
+      "mapped_port": 9011,
+      "version": "RELEASE.2024-07-16T23-46-41Z",
+      "data_volume": "minio-volume"
+    }
+  },
+  "nosql": {
+    "type": "scylladb",
+    "scylladb": {
+      "mapped_port": 9012,
+      "version": "6.0",
+      "cpus": 1,
+      "memory": "750",
+      "data_volume": "scylladb-volume"
+    }
+  }
+}

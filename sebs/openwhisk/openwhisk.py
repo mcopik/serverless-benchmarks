@@ -9,6 +9,7 @@ from sebs.benchmark import Benchmark
 from sebs.cache import Cache
 from sebs.faas import System, PersistentStorage
 from sebs.faas.function import Function, ExecutionResult, Trigger
+from sebs.faas.nosql import NoSQLStorage
 from sebs.openwhisk.storage import Minio
 from sebs.openwhisk.triggers import LibraryTrigger, HTTPTrigger
 from sebs.utils import DOCKER_DIR, LoggingHandlers, execute
@@ -66,6 +67,9 @@ class OpenWhisk(System):
         else:
             self.storage.replace_existing = replace_existing
         return self.storage
+
+    def get_nosql_storage(self) -> NoSQLStorage:
+        raise NotImplementedError()
 
     def shutdown(self) -> None:
         if hasattr(self, "storage") and self.config.shutdownStorage:

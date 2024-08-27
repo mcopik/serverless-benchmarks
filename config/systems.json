@@ -32,7 +32,8 @@
           "files": [
             "storage.py"
           ],
-          "packages": []
+          "packages": [],
+          "module_packages": {}
         }
       },
       "nodejs": {
@@ -71,9 +72,11 @@
         "deployment": {
           "files": [
             "handler.py",
-            "storage.py"
+            "storage.py",
+            "nosql.py"
           ],
-          "packages": []
+          "packages": [],
+          "module_packages": {}
         }
       },
       "nodejs": {
@@ -112,11 +115,18 @@
         "deployment": {
           "files": [
             "handler.py",
-            "storage.py"
+            "storage.py",
+            "nosql.py"
           ],
-          "packages": [
-            "azure-storage-blob"
-          ]
+          "packages": [],
+          "module_packages": {
+            "storage": [
+              "azure-storage-blob"
+            ],
+            "nosql": [
+              "azure-cosmos"
+            ]
+          }
         }
       },
       "nodejs": {
@@ -165,11 +175,18 @@
         "deployment": {
           "files": [
             "handler.py",
-            "storage.py"
+            "storage.py",
+            "nosql.py"
           ],
-          "packages": [
-            "google-cloud-storage"
-          ]
+          "packages": [],
+          "module_packages": {
+            "storage": [
+              "google-cloud-storage"
+            ],
+            "nosql": [
+              "google-cloud-datastore"
+            ]
+          }
         }
       },
       "nodejs": {
@@ -196,6 +213,11 @@
           }
         }
       }
+    },
+    "images": {
+      "manage": {
+        "username": "docker_user"
+      }
     }
   },
   "openwhisk": {
@@ -217,8 +239,12 @@
             "storage.py",
             "setup.py"
           ],
-          "packages": {
-            "minio": "^5.0.10"
+          "packages": [],
+          "module_packages": {
+            "storage": {
+              "minio": "^5.0.10"
+            },
+            "nosql": []
           }
         }
       },
