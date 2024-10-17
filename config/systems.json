@@ -243,6 +243,24 @@
             "minio": "7.0.16"
           }
         }
+      },
+      "java": {
+        "base_images": {
+          "8": "openwhisk/java8action"
+        },
+        "images": [
+          "function"
+        ],
+        "username": "docker_user",
+        "deployment": {
+          "files": [
+            "Main.java",
+            "Storage.java"
+          ],
+          "packages": {
+            "minio": "8.5.9"
+          }
+        }
       }
     }
   }

@@ -168,7 +168,7 @@ class OpenWhisk(System):
         )
 
         for fn in os.listdir(directory):
-            if fn not in ("index.js", "__main__.py"):
+            if fn not in ("index.js", "__main__.py", "Main.java"):
                 file = os.path.join(directory, fn)
                 shutil.move(file, build_dir)
 
@@ -219,6 +219,7 @@ class OpenWhisk(System):
         CONFIG_FILES = {
             "python": ["__main__.py"],
             "nodejs": ["index.js"],
+            "java": ["Main.java"],
         }
         package_config = CONFIG_FILES[language_name]
 

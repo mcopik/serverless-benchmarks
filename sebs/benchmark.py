@@ -250,11 +250,24 @@ class Benchmark(LoggingBase):
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
+            "java": ["pom.xml"],
         }
         path = os.path.join(self.benchmark_path, self.language_name)
+        
         for file_type in FILES[self.language_name]:
             for f in glob.glob(os.path.join(path, file_type)):
                 shutil.copy2(os.path.join(path, f), output_dir)
+
+        # copy src folder of java (java benchmarks are maven project and need directories)
+        if self.language_name == "java":
+           output_src_dir = os.path.join(output_dir, "src")
+           
+           if os.path.exists(output_src_dir):
+           # If src dir in output exist, remove the directory and all its contents
+                shutil.rmtree(output_src_dir)
+           #To have contents of src directory in the direcory named src located in output 
+           shutil.copytree(os.path.join(path, "src"), output_src_dir)
+     
         # support node.js benchmarks with language specific packages
         nodejs_package_json = os.path.join(path, f"package.json.{self.language_version}")
         if os.path.exists(nodejs_package_json):
@@ -288,6 +301,16 @@ class Benchmark(LoggingBase):
         for file in handlers:
             shutil.copy2(file, os.path.join(output_dir))
 
+    def add_deployment_package_java(self, output_dir):
+        # append to the end of requirements file
+        packages = self._system_config.deployment_packages(
+            self._deployment_name, self.language_name
+        )
+        if len(packages):
+            with open(os.path.join(output_dir, "requirements.txt"), "a") as out:
+                for package in packages:
+                    out.write(package)
+
     def add_deployment_package_python(self, output_dir):
         # append to the end of requirements file
         packages = self._system_config.deployment_packages(
@@ -319,6 +342,8 @@ class Benchmark(LoggingBase):
             self.add_deployment_package_python(output_dir)
         elif self.language == Language.NODEJS:
             self.add_deployment_package_nodejs(output_dir)
+        elif self.language == Language.JAVA:
+            self.add_deployment_package_java(output_dir)
         else:
             raise NotImplementedError
 

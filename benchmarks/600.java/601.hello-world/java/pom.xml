@@ -1,0 +1,38 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" 
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"  
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- Group ID and Artifact ID uniquely identify the project -->
+    <groupId>faas</groupId>
+    <artifactId>601.hello-world</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>jar</packaging> <!-- The packaging type for the project (jar by default) -->
+
+    <!-- Configure the Java version (set to Java 8) -->
+    <properties>
+        <maven.compiler.source>1.8</maven.compiler.source>  <!-- Source compatibility (Java 8) -->
+        <maven.compiler.target>1.8</maven.compiler.target>  <!-- Target compatibility (Java 8) -->
+    </properties>
+
+    <!-- Define the main class to run the JAR -->
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.2.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>faas.App</mainClass> <!-- Replace with your main class -->
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
