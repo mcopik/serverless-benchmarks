@@ -1,6 +1,6 @@
 {
   "general": {
-    "docker_repository": "spcleth/serverless-benchmarks"
+    "docker_repository": ""
   },
   "local": {
     "experiments": {

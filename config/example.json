@@ -1,12 +1,14 @@
 {
   "experiments": {
-    "deployment": "openwhisk",
+    "deployment": "aws",
     "update_code": false,
     "update_storage": false,
     "download_results": false,
+    "architecture": "arm64", 
+    "container_deployment": true,
     "runtime": {
       "language": "python",
-      "version": "3.7"
+      "version": "3.8"
     },
     "type": "invocation-overhead",
     "perf-cost": {

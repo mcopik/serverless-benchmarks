@@ -1,6 +1,7 @@
 import glob
 import hashlib
 import json
+import subprocess
 import os
 import shutil
 import subprocess
@@ -200,8 +201,9 @@ class Benchmark(LoggingBase):
         FILES = {
             "python": ["*.py", "requirements.txt*"],
             "nodejs": ["*.js", "package.json"],
+            "java": ["*.java", "pom.xml"],
         }
-        WRAPPERS = {"python": "*.py", "nodejs": "*.js"}
+        WRAPPERS = {"python": "*.py", "nodejs": "*.js", "java": "*.java"}
         NON_LANG_FILES = ["*.sh", "*.json"]
         selected_files = FILES[language] + NON_LANG_FILES
         for file_type in selected_files:
@@ -272,6 +274,28 @@ class Benchmark(LoggingBase):
         nodejs_package_json = os.path.join(path, f"package.json.{self.language_version}")
         if os.path.exists(nodejs_package_json):
             shutil.copy2(nodejs_package_json, os.path.join(output_dir, "package.json"))
+
+    #This is for making jar file and add it to docker directory
+    def add_java_output(self, code_dir):
+
+        if self.language_name == "java":
+
+            # Step 1: Move Main.java o src directory
+            src_dir = os.path.join(code_dir, "src", "main", "java")
+            if os.path.exists(code_dir):
+                main_java_path = os.path.join(code_dir, "Main.java")
+                if os.path.exists(main_java_path):
+                    shutil.move(main_java_path, src_dir)
+
+            # Step 2: Run mvn clean install
+            try:
+                # Navigate to the code directory where the pom.xml file is located
+                subprocess.run(['mvn', 'clean', 'install'], cwd=code_dir, check=True, text=True, capture_output=True)
+                print("Maven build successful!")
+            except subprocess.CalledProcessError as e:
+                print(f"Error during Maven build:\n{e.stdout}\n{e.stderr}")
+                return         
+           
 
     def add_benchmark_data(self, output_dir):
         cmd = "/bin/bash {benchmark_path}/init.sh {output_dir} false"
@@ -522,6 +546,7 @@ class Benchmark(LoggingBase):
         self.copy_code(self._output_dir)
         self.add_benchmark_data(self._output_dir)
         self.add_deployment_files(self._output_dir)
+        self.add_java_output(self._output_dir)
         self.add_deployment_package(self._output_dir)
         self.install_dependencies(self._output_dir)
         self._code_location, self._code_size = deployment_build_step(

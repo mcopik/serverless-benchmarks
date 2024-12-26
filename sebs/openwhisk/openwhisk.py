@@ -168,7 +168,7 @@ class OpenWhisk(System):
         )
 
         for fn in os.listdir(directory):
-            if fn not in ("index.js", "__main__.py", "Main.java"):
+            if fn not in ("index.js", "__main__.py"):
                 file = os.path.join(directory, fn)
                 shutil.move(file, build_dir)
 
@@ -214,24 +214,27 @@ class OpenWhisk(System):
         # to allow registration of function with OpenWhisk
         self.build_base_image(directory, language_name, language_version, benchmark, is_cached)
 
-        # We deploy Minio config in code package since this depends on local
-        # deployment - it cannnot be a part of Docker image
-        CONFIG_FILES = {
-            "python": ["__main__.py"],
-            "nodejs": ["index.js"],
-            "java": ["Main.java"],
-        }
-        package_config = CONFIG_FILES[language_name]
+        if language_name != 'java':
+            # We deploy Minio config in code package since this depends on local
+            # deployment - it cannnot be a part of Docker image
+            CONFIG_FILES = {
+                "python": ["__main__.py"],
+                "nodejs": ["index.js"],
+            }
+            package_config = CONFIG_FILES[language_name]
 
-        benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
-        subprocess.run(
-            ["zip", benchmark_archive] + package_config, stdout=subprocess.DEVNULL, cwd=directory
-        )
-        self.logging.info(f"Created {benchmark_archive} archive")
-        bytes_size = os.path.getsize(benchmark_archive)
-        self.logging.info("Zip archive size {:2f} MB".format(bytes_size / 1024.0 / 1024.0))
-        return benchmark_archive, bytes_size
+            benchmark_archive = os.path.join(directory, f"{benchmark}.zip")
+            subprocess.run(
+                ["zip", benchmark_archive] + package_config, stdout=subprocess.DEVNULL, cwd=directory
+            )
+            self.logging.info(f"Created {benchmark_archive} archive")
+            bytes_size = os.path.getsize(benchmark_archive)
+            self.logging.info("Zip archive size {:2f} MB".format(bytes_size / 1024.0 / 1024.0))
+            return benchmark_archive, bytes_size
+        benchmark_jar = os.path.join(directory, "docker", "target", "benchmark-1.jar")
+        bytes_size = os.path.getsize(benchmark_jar)
 
+        return benchmark_jar, bytes_size
     def storage_arguments(self) -> List[str]:
         storage = cast(Minio, self.get_storage())
         return [
@@ -281,27 +284,34 @@ class OpenWhisk(System):
                         code_package.language_name,
                         code_package.language_version,
                     )
+
+                    run_arguments = [
+                                *self.get_wsk_cmd(),
+                                "action",
+                                "create",
+                                func_name,
+                                "--web",
+                                "true",
+                                "--docker",
+                                docker_image,
+                                "--memory",
+                                str(code_package.benchmark_config.memory),
+                                "--timeout",
+                                str(code_package.benchmark_config.timeout * 1000),
+                                *self.storage_arguments(),
+                                code_package.code_location,
+                            ]
+                    if code_package.language_name == 'java':               
+                        run_arguments.extend(["--main", "Main"])
+
+                    
                     subprocess.run(
-                        [
-                            *self.get_wsk_cmd(),
-                            "action",
-                            "create",
-                            func_name,
-                            "--web",
-                            "true",
-                            "--docker",
-                            docker_image,
-                            "--memory",
-                            str(code_package.benchmark_config.memory),
-                            "--timeout",
-                            str(code_package.benchmark_config.timeout * 1000),
-                            *self.storage_arguments(),
-                            code_package.code_location,
-                        ],
+                        run_arguments,
                         stderr=subprocess.PIPE,
                         stdout=subprocess.PIPE,
                         check=True,
                     )
+                    
                     function_cfg.docker_image = docker_image
                     res = OpenWhiskFunction(
                         func_name, code_package.benchmark, code_package.hash, function_cfg

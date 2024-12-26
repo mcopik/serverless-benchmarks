@@ -2,7 +2,7 @@ ARG BASE_IMAGE
 FROM $BASE_IMAGE
 COPY . /function/
 
-RUN apt-get update && apt-get install -y maven
+# RUN apt-get update && apt-get install -y maven
 
-# Check if pom.xml exists before running Maven
-RUN if [ -f ./pom.xml ]; then mvn clean install; else echo "pom.xml not found, aborting build." && exit 1; fi
+# # Check if pom.xml exists before running Maven
+# RUN if [ -f ./pom.xml ]; then mvn clean install; else echo "pom.xml not found, aborting build." && exit 1; fi

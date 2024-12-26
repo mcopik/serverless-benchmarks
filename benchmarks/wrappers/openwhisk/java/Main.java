@@ -1,9 +1,13 @@
+import faas.App;
+import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import com.example.project.App ;
+import util.SessionBlob;
+import util.ShaSecurityProvider;
 import java.time.Instant;
 import java.time.Duration;
 import java.io.File;
 import java.io.IOException;
+//import jakarta.ws.rs.core.Response;
 
 
 public class Main {
@@ -15,12 +19,17 @@ public class Main {
         Gson gson = new Gson();
         App function = new App();
 
+        long start_nano = System.nanoTime();
+
         Instant begin = Instant.now();
         JsonObject result = function.handler(args);
         Instant end = Instant.now();
 
-        long computeTime = Duration.between(begin, end).toNanos() / 1000; // Convert nanoseconds to microseconds
+        long end_nano = System.nanoTime();
 
+        // long computeTime = Duration.between(begin, end).toNanos() / 1000; // Convert nanoseconds to microseconds
+
+        long computeTime = end_nano - start_nano;
         boolean isCold = false;
         String fileName = "/cold_run"; 
 
@@ -41,15 +50,13 @@ public class Main {
         String requestId = System.getenv("__OW_ACTIVATION_ID");  
 
         JsonObject jsonResult = new JsonObject();
-        jsonObject.put("begin", formattedBegin); 
-        jsonObject.put("end", formattedEnd);
-        jsonObject.put("request_id", "requestId");  
-        jsonObject.put("compute_time", computeTime);
-        jsonObject.put("is_cold", isCold);
-        jsonObject.put("result", result);
+        jsonResult.addProperty("begin", formattedBegin); 
+        jsonResult.addProperty("end", formattedEnd);
+        jsonResult.addProperty("request_id", requestId);  
+        jsonResult.addProperty("compute_time", computeTime);
+        jsonResult.addProperty("is_cold", isCold);
+        jsonResult.addProperty("result", result.toString());
         return jsonResult;
     }
-}
 
-        
-        
+}

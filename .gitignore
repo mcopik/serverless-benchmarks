@@ -182,3 +182,6 @@ cache
 # IntelliJ IDEA files
 .idea
 *.iml
+
+# Visual Studio Code files
+.vscode/
