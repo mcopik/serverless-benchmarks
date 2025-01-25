@@ -1,0 +1,12 @@
+{
+  "name": "sleep",
+  "version": "1.0.0",
+  "description": "",
+  "author": "",
+  "license": "",
+  "dependencies": {
+    "mathjs": "7.0.2"
+  },
+  "devDependencies": {
+  }
+}

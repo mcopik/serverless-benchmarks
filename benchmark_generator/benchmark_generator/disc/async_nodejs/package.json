@@ -1,0 +1,13 @@
+{
+    "name": "disc",
+    "version": "1.0.0",
+    "description": "",
+    "author": "",
+    "license": "",
+    "dependencies": {
+      "uuid": "8.2.0"
+    },
+    "devDependencies": {
+    }
+  }
+  
