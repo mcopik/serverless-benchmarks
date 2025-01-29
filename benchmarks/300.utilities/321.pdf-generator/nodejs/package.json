@@ -1,0 +1,8 @@
+{
+  "name": "pdf-generator",
+  "version": "1.0.0",
+  "description": "PDF Generator Benchmark using Puppeteer",
+  "dependencies": {
+    "puppeteer-core": "^22.15.0"
+  }
+}
