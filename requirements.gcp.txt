@@ -4,3 +4,4 @@ google-api-python-client==1.12.5
 google-cloud-monitoring==2.0.0
 google-api-python-client-stubs
 google-cloud-logging==2.0.0
+google-cloud-pubsub
