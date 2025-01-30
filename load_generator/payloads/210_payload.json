@@ -1,0 +1,50 @@
+{
+  "functions": [
+    {
+      "benchmark": "210.thumbnailer",
+      "config": {
+        "architecture": "x86",
+        "memory": 256,
+        "runtime": {
+          "language": "python",
+          "version": "3.7"
+        },
+        "timeout": 60
+      },
+      "hash": "442f3e4db7130c83a19c23ecd82efb70",
+      "instance_id": "67f07668974637517d711c11b9d1c761f7dd571af6ad2173019aec143dcf7a2a",
+      "name": "210.thumbnailer-python-3.7",
+      "port": 9000,
+      "triggers": [],
+      "url": "172.17.0.3:9000"
+    }
+  ],
+  "inputs": [
+    {
+      "bucket": {
+        "bucket": "sebs-benchmarks-local-0cf48662",
+        "input": "210.thumbnailer-0-input",
+        "output": "210.thumbnailer-0-output"
+      },
+      "object": {
+        "height": 200,
+        "key": "6_astronomy-desktop-wallpaper-evening-1624438.jpg",
+        "width": 200
+      }
+    }
+  ],
+  "storage": {
+    "access_key": "GNAZaCZQiH0sd-cZfpXN-2DextknZwjN5JezJ2wiciw",
+    "address": "172.17.0.2:9000",
+    "input_buckets": [
+      "210.thumbnailer-0-input"
+    ],
+    "instance_id": "69161516e1cd11774ba54925d1828a14b6e43ca389468897bc7fa3bedb339f54",
+    "mapped_port": 9011,
+    "output_buckets": [
+      "210.thumbnailer-0-output"
+    ],
+    "secret_key": "ae8704512eda16b6b5aa0cc267192b0fbdc931eb78acd8dba417c27c2badb735",
+    "type": "minio"
+  }
+}
