@@ -1,6 +1,7 @@
 {
   "general": {
-    "docker_repository": "spcleth/serverless-benchmarks"
+    "docker_repository": "spcleth/serverless-benchmarks",
+    "SeBS_version": "1.1.0"
   },
   "local": {
     "experiments": {

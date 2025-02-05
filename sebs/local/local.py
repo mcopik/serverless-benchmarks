@@ -17,6 +17,7 @@ from sebs.local.function import LocalFunction
 from sebs.faas.function import Function, FunctionConfig, ExecutionResult, Trigger
 from sebs.faas.storage import PersistentStorage
 from sebs.faas.system import System
+from sebs.faas.config import Resources
 from sebs.benchmark import Benchmark
 
 
@@ -341,11 +342,23 @@ class Local(System):
         raise NotImplementedError()
 
     @staticmethod
-    def default_function_name(code_package: Benchmark) -> str:
+    def default_function_name(
+        code_package: Benchmark, resources: Optional[Resources] = None
+    ) -> str:
         # Create function name
-        func_name = "{}-{}-{}".format(
-            code_package.benchmark, code_package.language_name, code_package.language_version
-        )
+        if resources is not None:
+            func_name = "{}-{}-{}-{}".format(
+                code_package.benchmark,
+                code_package.language_name,
+                code_package.language_version,
+                resources.resources_id,
+            )
+        else:
+            func_name = "{}-{}-{}".format(
+                code_package.benchmark,
+                code_package.language_name,
+                code_package.language_version,
+            )
         return func_name
 
     @staticmethod

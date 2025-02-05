@@ -104,11 +104,21 @@ class GCP(System):
         return self.storage
 
     @staticmethod
-    def default_function_name(code_package: Benchmark) -> str:
+    def default_function_name(
+        code_package: Benchmark, resources: Optional[Resources] = None
+    ) -> str:
         # Create function name
-        func_name = "{}-{}-{}".format(
-            code_package.benchmark, code_package.language_name, code_package.language_version
-        )
+        if resources is not None:
+            func_name = "{}-{}-{}-{}".format(
+                code_package.benchmark,
+                code_package.language_name,
+                code_package.language_version,
+                resources.resources_id,
+            )
+        else:
+            func_name = "{}-{}-{}".format(
+                code_package.benchmark, code_package.language_name, code_package.language_version
+            )
         return GCP.format_function_name(func_name)
 
     @staticmethod

@@ -37,6 +37,8 @@ def build(image_type, system, language=None, version=None, version_name=None):
         target += "." + language
     if version:
         target += "." + version
+    sebs_version = config["general"].get("SeBS_version", "unknown")
+    target += "." + sebs_version
 
     # if we pass an integer, the build will fail with 'connection reset by peer'
     buildargs = {

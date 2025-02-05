@@ -376,7 +376,9 @@ class System(ABC, LoggingBase):
         return changed
 
     @abstractmethod
-    def default_function_name(self, code_package: Benchmark) -> str:
+    def default_function_name(
+        self, code_package: Benchmark, resources: Optional[Resources] = None
+    ) -> str:
         pass
 
     @abstractmethod
